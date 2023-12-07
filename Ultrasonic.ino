@@ -1,8 +1,8 @@
 //  * Ultrasonic sensor TRIG PIN: D09
 //  * Ultrasonic sensor ECHO PIN: D10
 
-#define TRIG_PIN 9                     // GPIO pin for triger on ultrasonic sensor
-#define ECHO_PIN 10                    // GPIO pin for echo 
+#define TRIG_PIN     4                // GPIO pin for triger on ultrasonic sensor
+#define ECHO_PIN     5              // GPIO pin for echo 
 #define Motor_channel1 0 
 #define Motor_channel2 1 
 #define Motor_channel3 2
@@ -18,16 +18,17 @@ unsigned int LeftDistance;
 unsigned int RightDistance;
 unsigned int LeftDiagonalDistance;
 unsigned int RightDiagonalDistance;
-
+ 
 // limits for obstacles:
 const int distanceLimit = 27;           // Front distance limit in cm
 const int sideDistanceLimit = 12;       // Side distance limit in cm
 const int turnTime = 300;               // Time needed to turn robot
 
+long duration;
 
 void setup()                                        
 {
-  Serial.begin(115200);  
+  Serial.begin(9600);  
   ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Motor1 channel1
   ledcAttachPin(HeadPin, Motor_channel1); //motor 1    
 
@@ -36,29 +37,18 @@ void setup()
   pinMode(ECHO_PIN, INPUT);
 }
 
-void loop()
+void scan()                                         //This function determines the distance things are away from the ultrasonic sensor
 {
-  // watchsurrounding();
-  // delay(1000);
-  scan();
-  delay(500);
-}
-
-
-
-
-
-int scan()                                         //This function determines the distance things are away from the ultrasonic sensor
-{
-  int pulse;
+  long pulse;
+  Serial.println("Scanning distance");
+  digitalWrite(TRIG_PIN,LOW);
+  delayMicroseconds(5);                                                                              
   digitalWrite(TRIG_PIN,HIGH);
-  delayMicroseconds(10);
+  delayMicroseconds(15);
   digitalWrite(TRIG_PIN,LOW);
   pulse = pulseIn(ECHO_PIN,HIGH);
-  distance = round( pulse*0.017 );
-  Serial.println("Scanning distance");                                                                            
+  distance = round( pulse*0.01657 );
   Serial.println(distance);
-  delay(500);
 }
 
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095) 
@@ -132,7 +122,7 @@ void watchsurrounding()
   delay(100);
 
   // Scannign right diagnal
-  //scan();
+  scan();
   RightDiagonalDistance = distance;
   Serial.println("Right diagonal distance measuring done");
   if(RightDiagonalDistance < distanceLimit)
@@ -158,3 +148,7 @@ void watchsurrounding()
 }
 
 
+void loop()
+{
+  watchsurrounding();
+}
