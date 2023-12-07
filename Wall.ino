@@ -19,8 +19,10 @@ void setup() {
 }
 
 void loop() {
-  frequency = Down_time - old_time;
-  old_time = Down_time;
+  if (old_time != Down_time){
+      frequency = Down_time - old_time;
+      old_time = Down_time;
+  }
   if (frequency >= 21 && frequency <= 25) {
         digitalWrite(LED_RED, HIGH); // Turn on the red LED
         digitalWrite(LED_GREEN, LOW); // Turn off the green LED
