@@ -115,13 +115,13 @@ void handleSlider2() {
 
 void handleButton1() {
   moveLeft();
-  delay(200);
+  delay(Turntime);
   h.sendplain("");
 } //Button Left
 
 void handleButton2() {
   moveRight();
-  delay(200);
+  delay(Turntime);
   h.sendplain("");
 } //Button Right
 
