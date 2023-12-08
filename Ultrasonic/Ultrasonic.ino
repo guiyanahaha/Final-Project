@@ -84,12 +84,15 @@ void handleSlider1() {
   int sliderValue = h.getVal();
   String s = "Move";
   if (sliderValue == 1) {
+    moveBackward();
     s = s+ " Backward";
     Serial.println(sliderValue);
   } else if(sliderValue == 3) {
+    moveForward();
     s = s+ " Forward";
     Serial.println(sliderValue);
   } else if(sliderValue == 2) {
+    moveStop();
     s = s+ " Stop";
     Serial.println(sliderValue);
   }
