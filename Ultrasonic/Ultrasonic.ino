@@ -35,7 +35,6 @@ char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obs
 int distanceCounter = 0;
 int numcycles = 0;  // Number of cycles used to rotate with head during moving
 int roam = 0;       // Switching between automatic and manual mode of moving
-int mon = 0;        // Switching between monitor and manual mode of moving
  
 // limits for obstacles:
 const int distanceLimit = 27;           // Front distance limit in cm
@@ -74,10 +73,7 @@ void setup(){
   h.attachHandler("/setLeft", handleButton1);       //attach buttons
   h.attachHandler("/setRight", handleButton2);
   
-  Serial.println(" Automatic mode");
-  mon = 0;
   moveStop();
-  toggleRoam(); 
 }
 
 void handleRoot(){
@@ -90,12 +86,10 @@ void handleSlider1() {
   if (sliderValue == 1) {
     s = s+ " Backward";
     Serial.println(sliderValue);
-  }
-  else if(sliderValue == 3) {
+  } else if(sliderValue == 3) {
     s = s+ " Forward";
     Serial.println(sliderValue);
-  }
-  else if(sliderValue == 2) {
+  } else if(sliderValue == 2) {
     s = s+ " Stop";
     Serial.println(sliderValue);
   }
@@ -104,17 +98,30 @@ void handleSlider1() {
 
 void handleSlider2() {
   int sliderValue = h.getVal();
-  Serial.println(sliderValue);
-  h.sendplain(itoa(sliderValue,numberArray,10)); //print slider value to website
+  String s = "";
+  if (sliderValue == 1){
+    Serial.println("Automatic mode");
+    moveStop();
+    toggleRoam(); 
+    s = s+ "Automatic";
+  } else if(sliderValue == 0) {
+    Serial.println("Control mode");
+    moveStop();
+    s = s+ "Control";
+    Serial.println(sliderValue);
+  }
+  h.sendplain(s);
 } // Mode slider: control/autonomous
 
 void handleButton1() {
   moveLeft();
+  delay(200);
   h.sendplain("");
 } //Button Left
 
 void handleButton2() {
   moveRight();
+  delay(200);
   h.sendplain("");
 } //Button Right
 
@@ -147,20 +154,6 @@ void toggleRoam(){
     roam = 0;
     moveStop();
     Serial.println("De-activated Roam Mode");
-  }
-}
-
-//This function toggle between monitor and stop mode
-void toggleMonitor(){
-  if(mon == 0){
-    mon = 1;
-    moveStop();
-    Serial.println("Activated Monitor Mode");
-  }
-  else{
-    mon = 0;
-    moveStop();
-    Serial.println("De-activated Monitor Mode");
   }
 }
 
@@ -353,29 +346,8 @@ void go() {
   }
 }
 
-void monitor() {
-    ledcAnalogWrite(Motor_channel1,map(98, 0, 180, 122, 492));
-    delay(1000);    
-    scan();    
-    if(distance < distanceLimit){
-      ledcAnalogWrite(Motor_channel1,map(138, 0, 180, 122, 492));
-      delay(300);
-      Serial.println(distance);
-      ledcAnalogWrite(Motor_channel1,map(58, 0, 180, 122, 492));
-      delay(300);
-      ledcAnalogWrite(Motor_channel1,map(138, 0, 180, 122, 492));
-      delay(300);
-      ledcAnalogWrite(Motor_channel1,map(58, 0, 180, 122, 492));
-      delay(300);
-    }  
-}
-
 void loop(){
   if(roam == 1){
     go();
-  }
-  
-  if(mon == 1) {
-    monitor();
   }
 }
