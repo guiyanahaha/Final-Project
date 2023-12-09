@@ -10,6 +10,7 @@
 #define Motor_channel3 2
 const int HeadPin = 1;  // GPIO pin for the Head Motor
 const int LeftMotor = 0; //// GPIO pin for the LeftMotor
+const int RightMotor = 6; //// GPIO pin for the LeftMotor
 
 #define Motor_freq 50  //Motor frequency
 #define Motor_resolution_bits 12 //Motor resolution in bits
@@ -47,6 +48,8 @@ void setup(){
   ledcAttachPin(HeadPin, Motor_channel1);
   ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
   ledcAttachPin(LeftMotor, Motor_channel2);
+  ledcSetup(Motor_channel3, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
+  ledcAttachPin(RightMotor, Motor_channel3);
 
   // ultrasonic pin set
   pinMode(TRIG_PIN, OUTPUT);
@@ -83,17 +86,17 @@ void handleRoot(){
 void handleSlider1() {
   int sliderValue = h.getVal();
   String s = "Move";
-  if (sliderValue == 1) {
-    moveBackward();
+  if (sliderValue == 3) {
     s = s+ " Backward";
+    moveBackward();
     Serial.println(sliderValue);
-  } else if(sliderValue == 3) {
-    moveForward();
+  } else if(sliderValue == 1) {
     s = s+ " Forward";
+    moveForward();
     Serial.println(sliderValue);
   } else if(sliderValue == 2) {
-    moveStop();
     s = s+ " Stop";
+    moveStop();
     Serial.println(sliderValue);
   }
   h.sendplain(s);
@@ -105,26 +108,41 @@ void handleSlider2() {
   if (sliderValue == 1){
     Serial.println("Automatic mode");
     moveStop();
-    toggleRoam(); 
+    roam = 1; 
     s = s+ "Automatic";
   } else if(sliderValue == 0) {
-    Serial.println("Control mode");
+    Serial.println("Manual mode");
+    roam = 0;
     moveStop();
-    s = s+ "Control";
+    s = s+ "Manual";
     Serial.println(sliderValue);
-  }
+  }else if(sliderValue == 2) {
+    Serial.println("Vive mode");
+    roam = 0;
+    moveStop();
+    s = s+ "Vive";
+    Serial.println(sliderValue);
+  }else if(sliderValue == 3) {
+    Serial.println("ESPnow mode");
+    roam = 0;
+    moveStop();
+    s = s+ "ESPnow";
+    Serial.println(sliderValue);
+  } 
   h.sendplain(s);
 } // Mode slider: control/autonomous
 
 void handleButton1() {
   moveLeft();
-  delay(turnTime);
+  delay(200);
+  moveStop();
   h.sendplain("");
 } //Button Left
 
 void handleButton2() {
   moveRight();
-  delay(turnTime);
+  delay(200);
+  moveStop();
   h.sendplain("");
 } //Button Right
 
@@ -164,40 +182,40 @@ void toggleRoam(){
 void moveForward(){
   Serial.println("");
   Serial.println("Moving forward");
-  ledcAnalogWrite(Motor_channel2,map(0, 0, 180, 122, 492));
-  //ledcAnalogWrite(Motor_channel3,map(180, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(106, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(0, 0, 180, 122, 492));
 }
 
 //This function tells the robot to move backward
 void moveBackward(){
   Serial.println("");
   Serial.println("Moving backward");
-  ledcAnalogWrite(Motor_channel2,map(180, 0, 180, 122, 492));
-  //ledcAnalogWrite(Motor_channel3,map(0, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(63, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(180, 0, 180, 122, 492));
 }
 
 //This function tells the robot to turn left
 void moveRight(){
   Serial.println("");
   Serial.println("Moving left");
-  ledcAnalogWrite(Motor_channel2,map(60, 0, 180, 122, 492));
-  //ledcAnalogWrite(Motor_channel3,map(90, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(120, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(120, 0, 180, 122, 492));
 }
 
 //This function tells the robot to turn right
 void moveLeft(){
   Serial.println("");
   Serial.println("Moving right");
-  ledcAnalogWrite(Motor_channel2,map(120, 0, 180, 122, 492));
-  //ledcAnalogWrite(Motor_channel3,map(120, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(60, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(60, 0, 180, 122, 492));
 }
 
 //This function tells the robot to stop moving
 void moveStop(){
   Serial.println("");
   Serial.println("Stopping");
-  ledcAnalogWrite(Motor_channel2,map(90, 0, 180, 122, 492));
-  //ledcAnalogWrite(Motor_channel3,map(90, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(88, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(88, 0, 180, 122, 492));
 }
 
 void watchsurrounding(){ 
@@ -350,6 +368,7 @@ void go() {
 }
 
 void loop(){
+  h.serve();
   if(roam == 1){
     go();
   }
