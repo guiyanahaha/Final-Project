@@ -2,13 +2,13 @@ const char body[] PROGMEM = R"===(
 <!DOCTYPE html>
 <html>
   <body>
-    <h1>Motor Direction/Speed Sliders</h1>
+    <h1>Robot Mode/Direction</h1>
 
     <div class="slidecontainer">
       
       <p>Mode Control/Autonomous:</p>
-      <input type="range" min="0" max="1" value="0" id="ModeSlider">
-      <span id="ModeValue">Control</span> <br>
+      <input type="range" min="0" max="3" value="0" id="ModeSlider">
+      <span id="ModeValue">Manual</span> <br>
       
       <p>Move Forward/Stop/Backward:</p>
       <input type="range" min="1" max="3" value="2" id="directionSlider">
@@ -43,7 +43,7 @@ const char body[] PROGMEM = R"===(
       var xhttp = new XMLHttpRequest();
       xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
-          document.getElementById("ModeValue").innerHTML = this.responseText + "%";
+          document.getElementById("ModeValue").innerHTML = this.responseText;
         }
       };
       var str = "/setMode?val="; // Modify this URL to match your backend endpoint
@@ -52,7 +52,6 @@ const char body[] PROGMEM = R"===(
       xhttp.send();
     }
     
-  updateLeft();
   function updateLeft() {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
@@ -65,7 +64,6 @@ const char body[] PROGMEM = R"===(
     xhttp.send();
   }
   
-  updateRight();
   function updateRight() {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
@@ -74,7 +72,7 @@ const char body[] PROGMEM = R"===(
       this.responseText;
     }
   };
-    xhttp.open("GET", "setLeft", true);
+    xhttp.open("GET", "setRight", true);
     xhttp.send();
   }
   </script>
