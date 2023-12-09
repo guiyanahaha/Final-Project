@@ -6,7 +6,7 @@
 #include <WiFi.h>
 
 #define CHANNEL 1                  // channel can be 1 to 14, channel 0 means current channel.  
-#define MAC_RECV  {0x84,0xF7,0x03,0xA8,0xBE,0x30} // receiver MAC address (last digit should be even for STA)
+#define MAC_RECV  {0x68,0x67,0x25,0xB4,0xC6,0x10} // receiver MAC address (last digit should be even for STA)
 
 esp_now_peer_info_t peer1 = 
 {
@@ -31,11 +31,21 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
       Serial.printf("%x",data[i]); if (i%3==0) Serial.print(" ");
     }
   }
+  static int count;
+  uint8_t message[200]; // Max ESPnow packet is 250 byte data
+
+  // put some message together to send
+  sprintf((char *) message, "sender %d ", count++);
+  
+  if (esp_now_send(peer1.peer_addr, message, sizeof(message))==ESP_OK) 
+    Serial.printf("Sent '%s' to %x:%x:%x:%x:%x:%x \n",message, peer1.peer_addr[0],peer1.peer_addr[1],peer1.peer_addr[2],peer1.peer_addr[3],peer1.peer_addr[4],peer1.peer_addr[5]);   
+  else Serial.println("Send failed");
 }
 
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);  
+// send ESP now transmit
   Serial.print("Sending MAC: "); Serial.println(WiFi.macAddress());
   if (esp_now_init() != ESP_OK) {
     Serial.println("init failed");
@@ -48,26 +58,12 @@ void setup() {
     Serial.println("Pair failed");     // ERROR  should not happen
   }
 
-  Serial.print("ESPNow Receiving MAC: ");  Serial.println(WiFi.macAddress());
 
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("ESPNow Init Failed");
-    ESP.restart();
-  }
+// receive ESP now transmit
+  Serial.print("ESPNow Receiving MAC: ");  Serial.println(WiFi.macAddress());
   esp_now_register_recv_cb(OnDataRecv);
 }
 
 void loop() {
-  static int count;
-  uint8_t message[200]; // Max ESPnow packet is 250 byte data
-
-  // put some message together to send
-  sprintf((char *) message, "sender %d ", count++);
-  
-  if (esp_now_send(peer1.peer_addr, message, sizeof(message))==ESP_OK) 
-    Serial.printf("Sent '%s' to %x:%x:%x:%x:%x:%x \n",message, peer1.peer_addr[0],peer1.peer_addr[1],peer1.peer_addr[2],peer1.peer_addr[3],peer1.peer_addr[4],peer1.peer_addr[5]);   
-  else Serial.println("Send failed");
-  
   delay(25); // ESPNow max sending rate (with default speeds) is about 50Hz
-   
 }
