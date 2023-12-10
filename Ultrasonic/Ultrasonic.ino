@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <esp_now.h>
 
 #include "Webpage.h"
 #include "html510.h"
@@ -27,8 +28,8 @@ HTML510Server h(80);
 WiFiServer server(80);
 char numberArray[20];
 
-const char* ssid = "TP-Link_E0C8";  //TP-Link_E0C8
-const char* password = "52665134";   //52665134
+const char* ssid = "620@The_axis_apartments";  //620@The_axis_apartments //TP-Link_E0C8
+const char* password = "bdkU5RCVQGQP";   //bdkU5RCVQGQP  //52665134
 
 char choice;
 char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
@@ -41,6 +42,7 @@ int roam = 0;       // Switching between automatic and manual mode of moving
 const int distanceLimit = 27;           // Front distance limit in cm
 const int sideDistanceLimit = 12;       // Side distance limit in cm
 const int turnTime = 300;               // Time needed to turn robot
+
 
 void setup(){
   Serial.begin(9600);  
@@ -55,8 +57,8 @@ void setup(){
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  IPAddress myIP(192,168,1,130);  //change to your own IP address
-  IPAddress routerIP(192,168,1,1); //192,168,1,1
+  IPAddress myIP(10,20,104,130);  //change to your own IP address
+  IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1
   
   WiFi.mode(WIFI_MODE_STA);    //static mode
   WiFi.begin(ssid, password);
@@ -165,19 +167,6 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
   ledcWrite(channel, duty); // write duty to Motor pin
 }
 
-//This function toggle between autonomous and stop mode
-void toggleRoam(){
-  if(roam == 0){
-    roam = 1;
-    Serial.println("Activated Roam Mode");
-  }
-  else{
-    roam = 0;
-    moveStop();
-    Serial.println("De-activated Roam Mode");
-  }
-}
-
 //This function tells the robot to go forward 
 void moveForward(){
   Serial.println("");
@@ -197,7 +186,7 @@ void moveBackward(){
 //This function tells the robot to turn left
 void moveRight(){
   Serial.println("");
-  Serial.println("Moving left");
+  Serial.println("Moving right");
   ledcAnalogWrite(Motor_channel2,map(120, 0, 180, 122, 492));
   ledcAnalogWrite(Motor_channel3,map(120, 0, 180, 122, 492));
 }
@@ -205,7 +194,7 @@ void moveRight(){
 //This function tells the robot to turn right
 void moveLeft(){
   Serial.println("");
-  Serial.println("Moving right");
+  Serial.println("Moving left");
   ledcAnalogWrite(Motor_channel2,map(60, 0, 180, 122, 492));
   ledcAnalogWrite(Motor_channel3,map(60, 0, 180, 122, 492));
 }
@@ -372,4 +361,5 @@ void loop(){
   if(roam == 1){
     go();
   }
+  delay(20);
 }
