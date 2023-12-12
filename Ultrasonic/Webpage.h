@@ -7,24 +7,23 @@ const char body[] PROGMEM = R"===(
     <div class="slidecontainer">
       
       <p>Mode Control/Autonomous:</p>
-      <input type="range" min="0" max="3" value="0" id="ModeSlider">
+      <input type="range" min="0" max="4" value="0" id="ModeSlider">
       <span id="ModeValue">Manual</span> <br>
       
       <p>Move Forward/Stop/Backward:</p>
       <input type="range" min="1" max="3" value="2" id="directionSlider">
       <span id="directionValue">Move Stop</span> <br>
+
+      <p>Move Left/Stop/Right:</p>
+      <input type="range" min="1" max="3" value="2" id="LRSlider">
+      <span id="LRValue">Move Stop</span> <br>
       
     </div>
-      <p>Turn Left/Right</p>
-    <button type="button" onclick="updateLeft()"> Left </button>
-      <span id="Left"> </span>
-    <button type="button" onclick="updateRight()"> Right </button>
-      <span id="Right"> </span> <br>
-    
   </body>
   <script>
     var directionSlider = document.getElementById("directionSlider");
     var ModeSlider = document.getElementById("ModeSlider");
+    var LRSlider = document.getElementById("LRSlider");
 
     directionSlider.oninput = function() {
       var xhttp = new XMLHttpRequest();
@@ -52,29 +51,18 @@ const char body[] PROGMEM = R"===(
       xhttp.send();
     }
     
-  function updateLeft() {
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("Left").innerHTML =
-      this.responseText;
+    LRSlider.oninput = function() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          document.getElementById("LRValue").innerHTML = this.responseText;
+        }
+      };
+      var str = "/setLR?val="; // Modify this URL to match your backend endpoint
+      var res = str.concat(this.value);
+      xhttp.open("GET", res, true);
+      xhttp.send();
     }
-  };
-    xhttp.open("GET", "setLeft", true);
-    xhttp.send();
-  }
-  
-  function updateRight() {
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("Right").innerHTML =
-      this.responseText;
-    }
-  };
-    xhttp.open("GET", "setRight", true);
-    xhttp.send();
-  }
   </script>
 </html>
 
