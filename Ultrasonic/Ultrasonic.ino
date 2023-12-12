@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <esp_now.h>
+#include <WiFiUdp.h>
 
+#include "vive510.h"
 #include "Webpage.h"
 #include "html510.h"
 
@@ -28,24 +30,89 @@ HTML510Server h(80);
 WiFiServer server(80);
 char numberArray[20];
 
-const char* ssid = "620@The_axis_apartments";  //620@The_axis_apartments //TP-Link_E0C8
-const char* password = "bdkU5RCVQGQP";   //bdkU5RCVQGQP  //52665134
+const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
+const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
 
 char choice;
 char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
 
-int distanceCounter = 0;
+int distanceCounter = 0;               
 int numcycles = 0;  // Number of cycles used to rotate with head during moving
 int roam = 0;       // Switching between automatic and manual mode of moving
  
 // limits for obstacles:
 const int distanceLimit = 27;           // Front distance limit in cm
 const int sideDistanceLimit = 12;       // Side distance limit in cm
-const int turnTime = 300;               // Time needed to turn robot
+const int turnTime = 800;// Time needed to turn robot
 
+// handle vive
+#define RGBLED 2 // for ESP32S2 Devkit pin 18, for M5 stamp=2
+#define SIGNALPIN1 18 // pin receiving signal from Vive circuit
+#define SIGNALPIN2 19 // pin receiving signal from Vive circuit
+#define UDPPORT 2510 // For GTA 2022C game 
+#define STUDENTIP 130 // choose a teammembers assigned IP number
+#define teamNumber 1
+#define FREQ 1 // in Hz
+
+Vive510 vive1(SIGNALPIN1);
+Vive510 vive2(SIGNALPIN2);
+
+static uint16_t x3,y3,x2,y2;
+int x,y;
+WiFiUDP UDPServer;
+WiFiUDP UDPTestServer;
+IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
+
+void UdpSend(int x_udp, int y_udp)
+{
+  char udpBuffer[20];
+  sprintf(udpBuffer, "%02d:%4d,%4d",teamNumber,x_udp,y_udp);   
+                                              
+  UDPTestServer.beginPacket(ipTarget, UDPPORT);
+  UDPTestServer.println(udpBuffer);
+  UDPTestServer.endPacket();
+  Serial.println(udpBuffer);
+}
+
+void trackPolice(){
+  float s1 = (y-y3)/(x-x3);
+  float s2 = (y3-y2)/(x3-x2);
+  Serial.print("s1: ");
+  Serial.println(s1);
+  Serial.print("s2: ");
+  Serial.println(s2);
+  if (abs(s1-s2)>=0.2){
+    moveLeft();
+    delay(turnTime/2);
+    moveStop();
+    delay(turnTime/4);
+  }
+  moveForward();
+  delay(turnTime);
+  moveStop();
+  delay(turnTime/2);
+}
+
+void handleUDPServer() {
+   const int UDP_PACKET_SIZE = 14; // can be up to 65535          
+   uint8_t packetBuffer[UDP_PACKET_SIZE];
+
+   int cb = UDPServer.parsePacket(); // if there is no message cb=0
+   if (cb) {
+      packetBuffer[13]=0; // null terminate string
+
+    UDPServer.read(packetBuffer, UDP_PACKET_SIZE);
+      x = atoi((char *)packetBuffer+3); // ##,####,#### 2nd indexed char
+      y = atoi((char *)packetBuffer+8); // ##,####,#### 7th indexed char
+      Serial.print("From Team ");
+      Serial.println((char *)packetBuffer);
+   }
+}
 
 void setup(){
+  int i=0;
   Serial.begin(9600);  
+  
   ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Head Motor channel1
   ledcAttachPin(HeadPin, Motor_channel1);
   ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
@@ -57,13 +124,14 @@ void setup(){
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  IPAddress myIP(10,20,104,130);  //change to your own IP address
-  IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1
+  IPAddress myIP(192,168,1,130);  //change to your own IP address
+  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
   
-  WiFi.mode(WIFI_MODE_STA);    //static mode
+  WiFi.mode(WIFI_AP_STA);    //AP-static mode
   WiFi.begin(ssid, password);
   WiFi.config(myIP,routerIP,IPAddress(255,255,255,0));
-  
+
+  Serial.printf("team  #%d ", teamNumber); 
   while(WiFi.status()!= WL_CONNECTED ) {
     delay(500);
     Serial.print(".");
@@ -71,12 +139,18 @@ void setup(){
   Serial.printf("connected to %s on",ssid); 
   Serial.println(myIP);
 
+  UDPTestServer.begin(UDPPORT);
+  UDPServer.begin(UDPPORT);
+  
+  vive1.begin();
+  vive2.begin();
+  Serial.println("  Vive trackers started");
+
   h.begin();   //start the server
   h.attachHandler("/",handleRoot);
   h.attachHandler("/setDirection?val=", handleSlider1);    //attach sliders
   h.attachHandler("/setMode?val=", handleSlider2);
-  h.attachHandler("/setLeft", handleButton1);       //attach buttons
-  h.attachHandler("/setRight", handleButton2);
+  h.attachHandler("/setLR?val=", handleSlider3);
   
   moveStop();
 }
@@ -119,34 +193,50 @@ void handleSlider2() {
     s = s+ "Manual";
     Serial.println(sliderValue);
   }else if(sliderValue == 2) {
-    Serial.println("Vive mode");
+    // uses existing vive value to track police car
+    Serial.println("Trophy mode");
     roam = 0;
     moveStop();
-    s = s+ "Vive";
+    s = s+ "Trophy";
     Serial.println(sliderValue);
   }else if(sliderValue == 3) {
-    Serial.println("ESPnow mode");
+    Serial.println("Fake mode");
     roam = 0;
     moveStop();
-    s = s+ "ESPnow";
+    s = s+ "Fake";
+    Serial.println(sliderValue);
+  } else if(sliderValue == 4) {
+    Serial.println("Police mode");
+    roam = 0;
+    trackPolice();
+    s = s+ "Police car";
     Serial.println(sliderValue);
   } 
   h.sendplain(s);
 } // Mode slider: control/autonomous
 
-void handleButton1() {
-  moveLeft();
-  delay(200);
-  moveStop();
-  h.sendplain("");
-} //Button Left
-
-void handleButton2() {
-  moveRight();
-  delay(200);
-  moveStop();
-  h.sendplain("");
-} //Button Right
+void handleSlider3() {
+  int sliderValue = h.getVal();
+  String s = "Move";
+  if (sliderValue == 3) {
+    s = s+ " Right";
+    moveRight();
+    delay(turnTime);
+    moveStop();
+    Serial.println(sliderValue);
+  } else if(sliderValue == 1) {
+    s = s+ " Left";
+    moveLeft();
+    delay(turnTime);
+    moveStop();
+    Serial.println(sliderValue);
+  } else if(sliderValue == 2) {
+    s = s+ " Stop";
+    moveStop();
+    Serial.println(sliderValue);
+  }
+  h.sendplain(s);
+} // mode slider: move forward, stop, or backward
 
 //This function determines the distance things are away from the ultrasonic sensor
 void scan(){
@@ -204,7 +294,7 @@ void moveStop(){
   Serial.println("");
   Serial.println("Stopping");
   ledcAnalogWrite(Motor_channel2,map(88, 0, 180, 122, 492));
-  ledcAnalogWrite(Motor_channel3,map(88, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(87, 0, 180, 122, 492));
 }
 
 void watchsurrounding(){ 
@@ -260,7 +350,7 @@ void watchsurrounding(){
   ledcAnalogWrite(Motor_channel1,map(66, 0, 180, 122, 492));  // update Motor duty cycle
   delay(100);
 
-  // Scannign right diagnal
+  // Scanning right diagnal
   scan();
   RightDiagonalDistance = distance;
   Serial.println("Right diagonal distance measuring done");
@@ -340,14 +430,17 @@ void go() {
       case 'l':
         moveLeft();
         delay(turnTime);
+        moveStop();
         break;
       case 'r':
         moveRight();
         delay(turnTime);
+        moveStop();
         break;
       case 'b':
         moveBackward();
-        delay(turnTime);
+        delay(2*turnTime);
+        moveStop();
         break;
       case 'f':
         break;
@@ -358,8 +451,57 @@ void go() {
 
 void loop(){
   h.serve();
+  handleUDPServer();
+  static long int ms = millis();
+
+  if (millis()-ms>1000/FREQ) {
+    ms = millis();
+    if (WiFi.status()==WL_CONNECTED)
+        neopixelWrite(RGBLED,255,255,255);  // full white
+    UdpSend(x3,y3);
+    UdpSend(x2,y2);
+  }
+  
+  if (vive1.status() == VIVE_RECEIVING) {
+    x3 = vive1.xCoord();
+    y3 = vive1.yCoord();
+    neopixelWrite(RGBLED,0,x3/200,y3/200);  // blue to greenish
+  }
+  else {
+    x3=0;
+    y3=0; 
+    switch (vive1.sync(5)) {
+      break;
+      case VIVE_SYNC_ONLY: // missing sweep pulses (signal weak)
+        neopixelWrite(RGBLED,64,32,0);  // yellowish
+      break;
+      default:
+      case VIVE_NO_SIGNAL: // nothing detected     
+        neopixelWrite(RGBLED,128,0,0);  // red
+    }
+  }
+
+  if (vive2.status() == VIVE_RECEIVING) {
+    x2 = vive2.xCoord();
+    y2 = vive2.yCoord();
+    //neopixelWrite(RGBLED,0,x/200,y/200);  // blue to greenish
+  }
+  else {
+    x2=0;
+    y2=0; 
+    switch (vive2.sync(5)) {
+      break;
+      case VIVE_SYNC_ONLY: // missing sweep pulses (signal weak)
+        neopixelWrite(RGBLED,64,32,0);  // yellowish
+      break;
+      default:
+      case VIVE_NO_SIGNAL: // nothing detected     
+        neopixelWrite(RGBLED,128,0,0);  // red
+    }
+  }
+  
   if(roam == 1){
     go();
   }
-  delay(20);
+  //delay(20);
 }
