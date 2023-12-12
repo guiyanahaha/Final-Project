@@ -59,7 +59,7 @@ Vive510 vive1(SIGNALPIN1);
 Vive510 vive2(SIGNALPIN2);
 
 static uint16_t x3,y3,x2,y2;
-int x,y;
+int team,x,y;
 WiFiUDP UDPServer;
 WiFiUDP UDPTestServer;
 IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
@@ -83,13 +83,13 @@ void trackPolice(){
   Serial.print("s2: ");
   Serial.println(s2);
   if (abs(s1-s2)>=0.2){
-    moveLeft();
-    delay(turnTime/2);
+    moveRight();
+    delay(400);
+    moveStop();
+  }else{
+    moveForward();
+    delay(800);
   }
-  moveForward();
-  delay(turnTime);
-  moveStop();
-  delay(turnTime/2);
 }
 
 void handleUDPServer() {
@@ -100,11 +100,14 @@ void handleUDPServer() {
    if (cb) {
       packetBuffer[13]=0; // null terminate string
 
-    UDPServer.read(packetBuffer, UDP_PACKET_SIZE);
-      x = atoi((char *)packetBuffer+3); // ##,####,#### 2nd indexed char
-      y = atoi((char *)packetBuffer+8); // ##,####,#### 7th indexed char
-      Serial.print("From Team ");
-      Serial.println((char *)packetBuffer);
+      UDPServer.read(packetBuffer, UDP_PACKET_SIZE);
+      team = atoi((char *)packetBuffer+0); //##,####,#### 0nd indexed char
+      if(team == 0){
+        x = atoi((char *)packetBuffer+3); // ##,####,#### 2nd indexed char
+        y = atoi((char *)packetBuffer+8); // ##,####,#### 7th indexed char
+        Serial.print("From Team ");
+        Serial.println((char *)packetBuffer);
+      }
    }
 }
 
@@ -264,8 +267,8 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
 void moveForward(){
   Serial.println("");
   Serial.println("Moving forward");
-  ledcAnalogWrite(Motor_channel2,map(106, 0, 180, 122, 492));
-  ledcAnalogWrite(Motor_channel3,map(0, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(180, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(62, 0, 180, 122, 492));
 }
 
 //This function tells the robot to move backward
@@ -296,8 +299,8 @@ void moveLeft(){
 void moveStop(){
   Serial.println("");
   Serial.println("Stopping");
-  ledcAnalogWrite(Motor_channel2,map(88, 0, 180, 122, 492));
-  ledcAnalogWrite(Motor_channel3,map(87, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(87, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(88, 0, 180, 122, 492));
 }
 
 void watchsurrounding(){ 
@@ -509,5 +512,5 @@ void loop(){
   if(roam == 1){
     go();
   }
-  //delay(20);
+  delay(20);
 }
