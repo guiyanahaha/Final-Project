@@ -56,10 +56,12 @@ const int turnTime = 800;// Time needed to turn robot
 #define FREQ 1 // in Hz
 
 Vive510 vive1(SIGNALPIN1);
-Vive510 vive2(SIGNALPIN2);
+Vive510 vive2(SIGNALPIN2);    
 
-static uint16_t x3,y3,x2,y2;
-int team,x,y;
+static float x3,y3,x2,y2;
+int team;
+float x,y;
+
 WiFiUDP UDPServer;
 WiFiUDP UDPTestServer;
 IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
@@ -84,8 +86,9 @@ void trackPolice(){
   Serial.println(s2);
   if (abs(s1-s2)>=0.2){
     moveRight();
-    delay(400);
+    delay(200);
     moveStop();
+    delay(400);
   }else{
     moveForward();
     delay(800);
