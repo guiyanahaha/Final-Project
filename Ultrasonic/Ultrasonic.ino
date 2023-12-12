@@ -39,6 +39,7 @@ char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obs
 int distanceCounter = 0;               
 int numcycles = 0;  // Number of cycles used to rotate with head during moving
 int roam = 0;       // Switching between automatic and manual mode of moving
+int police = 0;   // Determine if police mode is start or not
  
 // limits for obstacles:
 const int distanceLimit = 27;           // Front distance limit in cm
@@ -84,8 +85,6 @@ void trackPolice(){
   if (abs(s1-s2)>=0.2){
     moveLeft();
     delay(turnTime/2);
-    moveStop();
-    delay(turnTime/4);
   }
   moveForward();
   delay(turnTime);
@@ -185,10 +184,12 @@ void handleSlider2() {
     Serial.println("Automatic mode");
     moveStop();
     roam = 1; 
+    police = 0;
     s = s+ "Automatic";
   } else if(sliderValue == 0) {
     Serial.println("Manual mode");
     roam = 0;
+    police = 0;
     moveStop();
     s = s+ "Manual";
     Serial.println(sliderValue);
@@ -196,19 +197,21 @@ void handleSlider2() {
     // uses existing vive value to track police car
     Serial.println("Trophy mode");
     roam = 0;
+    police = 0;
     moveStop();
     s = s+ "Trophy";
     Serial.println(sliderValue);
   }else if(sliderValue == 3) {
     Serial.println("Fake mode");
     roam = 0;
+    police = 0;
     moveStop();
     s = s+ "Fake";
     Serial.println(sliderValue);
   } else if(sliderValue == 4) {
     Serial.println("Police mode");
     roam = 0;
-    trackPolice();
+    police = 1;
     s = s+ "Police car";
     Serial.println(sliderValue);
   } 
@@ -498,6 +501,9 @@ void loop(){
       case VIVE_NO_SIGNAL: // nothing detected     
         neopixelWrite(RGBLED,128,0,0);  // red
     }
+  }
+  if(police == 1){
+    trackPolice();
   }
   
   if(roam == 1){
