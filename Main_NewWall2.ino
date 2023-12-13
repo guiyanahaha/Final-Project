@@ -316,212 +316,46 @@ void watchsurrounding(){
   delay(300);
   scan();
   FrontDistance = distance;
-  // Serial.println("Front distance = " );
-  // Serial.println(distance);
-  // if(FrontDistance < distanceLimit){
-  //   moveStop();
-  // }
 
   // Scanning right diagnal(right)
   ledcAnalogWrite(Motor_channel1,map(50, 0, 180, 122, 492));  // update Motor duty cycle
   delay(300);
   scan();
   RightDistance = distance;
-  //   Serial.println("Right distance = " );
-  //   Serial.println(distance);
-  // if(RightDistance < sideDistanceLimit){
-  //   moveStop();
-  // }  
-
 }
 
 
 void go() {
-  // watchsurrounding();
-  if (FrontDistance > distanceLimit) {
+
+  if (FrontDistance >= distanceLimit && -5 < (RightDistance - sideDistanceLimit) && (RightDistance - sideDistanceLimit) < 5) {
     moveForward();
-    // watchsurrounding();
+    
   }
-  else if(FrontDistance < distanceLimit){
+  else if (FrontDistance < distanceLimit) {
     moveLeft();
     delay(500);
     moveStop();
     moveForward();
   }
-  else if((RightDistance - sideDistanceLimit) < -5){
+  if (FrontDistance >= distanceLimit && RightDistance <= (sideDistanceLimit - 5)) {
     moveLeft();
-    delay(200);
+    delay(100);
     moveStop();
     moveForward();
   }
-  else if((RightDistance > sideDistanceLimit) > 5){
+  else if (FrontDistance >= distanceLimit && RightDistance >= (sideDistanceLimit + 5)) {
     moveRight();
-    delay(200);
+    delay(100);
+    moveStop();
     moveForward();
   }
-  else if ( -5 < (RightDistance - sideDistanceLimit) < 5)
-  moveForward();
-  
+  // else if (-5 < (RightDistance - sideDistanceLimit) && (RightDistance - sideDistanceLimit) < 5) {
+  //   moveForward();
+  // }
 }
 
 
 
-// void watchsurrounding(){ 
-//   //Meassures distances to the right, left, front, left diagonal, right diagonal and asign them in cm to the variables rightscanval, 
-//   //leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval (there are 5 points for distance testing)
-//   // Scanning front 
-//   scan();
-//   FrontDistance = distance;
-//   Serial.println("Front distance measuring done");
-//   if(FrontDistance < distanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(100);
-
-//   // Scanning left diagnal
-//   scan();
-//   LeftDiagonalDistance = distance;
-//   Serial.println("Left diagonal distance measuring done");
-//   if(LeftDiagonalDistance < distanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(162, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(300);
-
-//   // Scanning left
-//   scan();
-//   LeftDistance = distance;
-//   Serial.println("Left distance measuring done");
-//   if(LeftDistance < sideDistanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(100);
-
-//   // Scanning left diagnal
-//   scan();
-//   LeftDiagonalDistance = distance;
-//   Serial.println("Left diagonal distance measuring done");
-//   if(LeftDiagonalDistance < distanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(98, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(100);
-
-//   // Scanning front
-//   scan();
-//   FrontDistance = distance;
-//   Serial.println("Front distance measuring done");
-//   if(FrontDistance < distanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(66, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(100);
-
-//   // Scanning right diagnal
-//   scan();
-//   RightDiagonalDistance = distance;
-//   Serial.println("Right diagonal distance measuring done");
-//   if(RightDiagonalDistance < distanceLimit){
-//     moveStop();
-//   }
-//   ledcAnalogWrite(Motor_channel1,map(0, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(100);
-
-//   // Scanning right
-//   scan();
-//   RightDistance = distance;
-//   Serial.println("Right distance measuring done");
-//   if(RightDistance < sideDistanceLimit){
-//     moveStop();
-//   }
-
-//   //Finish looking around (look forward again)
-//   ledcAnalogWrite(Motor_channel1,map(98, 0, 180, 122, 492));  // update Motor duty cycle
-//   delay(300);
-//   Serial.println("Measuring done");
-// }
-
-
-
-// char decide(){
-//    // Decide the right way without obstacles
-//   watchsurrounding();
-//   if (LeftDistance > RightDistance && LeftDistance > FrontDistance){
-//     Serial.println("Choise result is: LEFT");
-//     choice = 'l';
-//   }
-//   else if (RightDistance > LeftDistance && RightDistance > FrontDistance){
-//     Serial.println("Choise result is: RIGHT");
-//     choice = 'r';
-//   }
-//   else if ( LeftDistance < sideDistanceLimit && RightDistance < sideDistanceLimit && FrontDistance < distanceLimit ) {
-//     Serial.println("Choice result is: BACK"); 
-//     choice = 'b';
-//   }
-//   else{
-//     Serial.println("Choise result is: FORWARD");
-//     choice = 'f';
-//   }
-//   return choice;
-// }
-
-
-
-
-// void go() {
-//   moveForward();
-//   ++numcycles;
-//   // After 40 cycles of code measure surrounding obstacles
-//   if(numcycles>40){
-//     Serial.println("Front obstancle detected");
-//     watchsurrounding();
-//     if( LeftDistance < sideDistanceLimit || LeftDiagonalDistance < sideDistanceLimit){
-//       Serial.println("Moving: RIGHT");
-//       moveRight();
-//       delay(turnTime);
-//     }
-//     if( RightDistance < sideDistanceLimit || RightDiagonalDistance < sideDistanceLimit){
-//       Serial.println("Moving: LEFT");
-//       moveLeft();
-//       delay(turnTime);
-//     }
-//     numcycles=0; //Restart count of cycles
-//   }
-//   scan();
-//   if( distance < distanceLimit){
-//     distanceCounter++;
-//   }
-//   if( distance > distanceLimit){
-//     distanceCounter = 0;
-//   }
-//   // robot reachaed 7 times distance limit in front of the robot, so robot must stop immediately and decide right way
-//   if(distanceCounter > 7){
-//     moveStop();
-//     turnDirection = decide();
-//      switch (turnDirection){
-//       case 'l':
-//         moveLeft();
-//         delay(turnTime);
-//         moveStop();
-//         break;
-//       case 'r':
-//         moveRight();
-//         delay(turnTime);
-//         moveStop();
-//         break;
-//       case 'b':
-//         moveBackward();
-//         delay(2*turnTime);
-//         moveStop();
-//         break;
-//       case 'f':
-//         break;
-//     }
-//     distanceCounter = 0;
-//   }
-// }
 
 void loop(){
   h.serve();
