@@ -46,7 +46,7 @@ int police = 0;   // Determine if police mode is start or not
  
 // limits for obstacles:
 const int distanceLimit = 30;           // Front distance limit in cm
-const int sideDistanceLimit = 20;       // Side distance limit in cm
+const int sideDistanceLimit = 30;       // Side distance limit in cm
 const int turnTime = 800;// Time needed to turn robot
 
 // handle vive
@@ -327,6 +327,7 @@ void watchsurrounding(){
   delay(300);
   scan();
   RightDistance = distance;
+  
   //   Serial.println("Right distance = " );
   //   Serial.println(distance);
   // if(RightDistance < sideDistanceLimit){
@@ -337,29 +338,35 @@ void watchsurrounding(){
 
 
 void go() {
-  // watchsurrounding();
-  if (FrontDistance > distanceLimit &&  -5 < (RightDistance - sideDistanceLimit) < 5) {
-    moveForward();
-    // watchsurrounding();
-  }
-  else if(FrontDistance < distanceLimit){
+  watchsurrounding();
+
+  if(FrontDistance < distanceLimit){
     moveLeft();
     delay(500);
     moveStop();
     moveForward();
   }
-  else if((FrontDistance > distanceLimit && RightDistance - sideDistanceLimit) < -5){
-    moveLeft();
-    delay(100);
-    moveStop();
+
+  else if (FrontDistance > distanceLimit){ //&&  -7< (RightDistance - sideDistanceLimit) < 7) {
     moveForward();
-  }
-  else if((FrontDistance > distanceLimit && RightDistance > sideDistanceLimit) > 5){
+    // watchsurrounding();
+  }  
+
+  if(FrontDistance > distanceLimit && (RightDistance - sideDistanceLimit) > 5){
     moveRight();
-    delay(100);
+    delay(70);
     moveStop();
     moveForward();
   }
+  else if(FrontDistance > distanceLimit && (RightDistance - sideDistanceLimit) < -5){
+    moveLeft();
+    delay(40);
+    moveStop();
+    moveForward();
+  }
+  
+
+  
   // else if ( -5 < (RightDistance - sideDistanceLimit) < 5)
   // moveForward();
   
