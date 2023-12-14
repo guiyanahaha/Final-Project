@@ -535,6 +535,7 @@ void loop(){
 
  // check if the automatic (wall following) mode is started
   if(roam == 1){
+    watchsurrounding();
     go();
   }
 
