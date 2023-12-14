@@ -71,8 +71,8 @@ char lenStr[20];
 char choice;
 char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
 
-const char* ssid = "620@The_axis_apartments";  //620@The_axis_apartments //TP-Link_E0C8
-const char* password = "bdkU5RCVQGQP";   //bdkU5RCVQGQP  //52665134
+const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
+const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
 
 Vive510 vive1(SIGNALPIN1);
 Vive510 vive2(SIGNALPIN2);
@@ -125,10 +125,10 @@ void setup(){
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  //IPAddress myIP(192,168,1,130);  //change to your own IP address
-  //IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
-   IPAddress myIP(10,20,104,130);  //change to your own IP address
-   IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1 
+  IPAddress myIP(192,168,1,130);  //change to your own IP address
+  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
+  //IPAddress myIP(10,20,104,130);  //change to your own IP address
+  //IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1 
   
   WiFi.mode(WIFI_AP_STA);    //AP-static mode
   WiFi.begin(ssid, password);
