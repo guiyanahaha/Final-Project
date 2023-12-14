@@ -1,7 +1,10 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <WiFiUdp.h>
-
+#include <stdio.h>
+#include "esp_log.h"
+#include "driver/i2c.h"
+#include "sdkconfig.h"
 #include "vive510.h"
 #include "Webpage.h"
 #include "html510.h"
@@ -11,44 +14,6 @@
 #define Motor_channel1 0 
 #define Motor_channel2 1 
 #define Motor_channel3 2
-const int HeadPin = 1;  // GPIO pin for the Head Motor
-const int LeftMotor = 0; //// GPIO pin for the LeftMotor
-const int RightMotor = 6; //// GPIO pin for the LeftMotor
-
-#define Motor_freq 50  //Motor frequency
-#define Motor_resolution_bits 12 //Motor resolution in bits
-#define Motor_resolution ((1<<Motor_resolution_bits)-1)
-
-unsigned int distance;
-unsigned int FrontDistance;
-unsigned int LeftDistance;
-unsigned int RightDistance;
-unsigned int LeftDiagonalDistance;
-unsigned int RightDiagonalDistance;
-
-int x3_buffer[10], y3_buffer[10],x2_buffer[10], y2_buffer[10];
-
-HTML510Server h(80);
-WiFiServer server(80);
-char numberArray[20];
-char lenStr[20];
-
-const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
-const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
-
-char choice;
-char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
-
-int distanceCounter = 0;               
-int numcycles = 0;  // Number of cycles used to rotate with head during moving
-int roam = 0;       // Switching between automatic and manual mode of moving
-int police = 0;   // Determine if police mode is start or not
- 
-// limits for obstacles:
-const int distanceLimit = 30;           // Front distance limit in cm
-const int sideDistanceLimit = 30;       // Side distance limit in cm
-const int turnTime = 800;// Time needed to turn robot
-int count;
 
 // handle vive
 #define RGBLED 2 // for ESP32S2 Devkit pin 18, for M5 stamp=2
@@ -59,21 +24,11 @@ int count;
 #define teamNumber 1
 #define FREQ 1 // in Hz
 
-Vive510 vive1(SIGNALPIN1);
-Vive510 vive2(SIGNALPIN2);
+#define Motor_freq 50  //Motor frequency
+#define Motor_resolution_bits 12 //Motor resolution in bits
+#define Motor_resolution ((1<<Motor_resolution_bits)-1)
 
-static uint16_t x3,y3,x2,y2;
-int team,x,y;
-WiFiUDP UDPServer;
-WiFiUDP UDPTestServer;
-IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
-
-#include <stdio.h>
-#include "esp_log.h"
-#include "driver/i2c.h"
-#include "sdkconfig.h"
-
-
+// handle master-slave(i2c)
 #define DATA_LENGTH 128                  /*!< Data buffer length of test buffer */
 #define RW_TEST_LENGTH 22               /*!< Data length for r/w test, [0,DATA_LENGTH] */
 
@@ -83,6 +38,55 @@ IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
 #define I2C_SLAVE_RX_BUF_LEN (2 * DATA_LENGTH)              /*!< I2C slave rx buffer size */
 
 #define ESP_SLAVE_ADDR       0x28 /*!< ESP32 slave address, you can set any 7bit value */
+
+const int HeadPin = 1;  // GPIO pin for the Head Motor
+const int LeftMotor = 0; //// GPIO pin for the LeftMotor
+const int RightMotor = 6; //// GPIO pin for the LeftMotor
+
+// limits for obstacles:
+const int distanceLimit = 30;           // Front distance limit in cm
+const int sideDistanceLimit = 30;       // Side distance limit in cm
+const int turnTime = 800;// Time needed to turn robot
+
+unsigned int distance;
+unsigned int FrontDistance;
+unsigned int LeftDistance;
+unsigned int RightDistance;
+unsigned int LeftDiagonalDistance;
+unsigned int RightDiagonalDistance;
+
+int x3_buffer[10], y3_buffer[10],x2_buffer[10], y2_buffer[10];
+int distanceCounter = 0;               
+int numcycles = 0;  // Number of cycles used to rotate with head during moving
+int roam = 0;       // Switching between automatic and manual mode of moving
+int police = 0;   // Determine if police mode is start or not
+int count;
+int team,x,y;
+
+HTML510Server h(80);
+WiFiServer server(80);
+char numberArray[20];
+char lenStr[20];
+
+char choice;
+char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
+
+const char* ssid = "620@The_axis_apartments";  //620@The_axis_apartments //TP-Link_E0C8
+const char* password = "bdkU5RCVQGQP";   //bdkU5RCVQGQP  //52665134
+
+Vive510 vive1(SIGNALPIN1);
+Vive510 vive2(SIGNALPIN2);
+
+String message = "begin";
+String lastmessage = "begin";
+uint8_t data_rd[DATA_LENGTH];
+uint8_t data_wr[] = "Team 1: begin";
+static uint16_t x3,y3,x2,y2;
+
+WiFiUDP UDPServer;
+WiFiUDP UDPTestServer;
+IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
+
 
 /**
  * @brief i2c slave initialization
@@ -104,12 +108,6 @@ static esp_err_t i2c_slave_init()
                               I2C_SLAVE_TX_BUF_LEN, 0);
 }
 
-String message = "begin";
-String lastmessage = "begin";
-uint8_t data_rd[DATA_LENGTH];
-uint8_t data_wr[] = "Team 1: begin";
-
-
 
 
 void setup(){
@@ -127,10 +125,10 @@ void setup(){
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  IPAddress myIP(192,168,1,130);  //change to your own IP address
-  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
-  // IPAddress myIP(172,20,10,2);  //change to your own IP address
-  // IPAddress routerIP(122,20,10,1); //192,168,1,1 //10,20,104,1 
+  //IPAddress myIP(192,168,1,130);  //change to your own IP address
+  //IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
+   IPAddress myIP(10,20,104,130);  //change to your own IP address
+   IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1 
   
   WiFi.mode(WIFI_AP_STA);    //AP-static mode
   WiFi.begin(ssid, password);
