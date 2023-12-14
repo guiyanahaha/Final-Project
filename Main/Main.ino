@@ -468,14 +468,16 @@ void loop(){
   handleUDPServer();
   static long int ms = millis();
  //master-slave communication
-  if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
-    if (data_rd[0] == 'G' && data_rd[1] == 'O')
-       Serial.println("GO!");
-    Serial.printf("READ from master: %s\n",data_rd);
-    //                         I2Cport    buffer   length of data   max ticks to wait if buffer is full
-    if (i2c_slave_write_buffer(I2C_NUM_0, data_wr, RW_TEST_LENGTH, 10 / portTICK_RATE_MS) ) {
-      Serial.printf("WRITE to master: %s\n",data_wr);
-    }  
+ if (lastmessage!= message){
+    if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
+      if (data_rd[0] == 'G' && data_rd[1] == 'O')
+         Serial.println("GO!");
+      Serial.printf("READ from master: %s\n",data_rd);
+      //I2Cport buffer length of data     max ticks to wait if buffer is full
+      if (i2c_slave_write_buffer(I2C_NUM_0, data_wr, RW_TEST_LENGTH, 10 / portTICK_RATE_MS) ) {
+        Serial.printf("WRITE to master: %s\n",data_wr);
+      }  
+    }
   }
  
  // Send vive sensed signal through UDP communication
