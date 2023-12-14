@@ -26,12 +26,18 @@ unsigned int RightDistance;
 unsigned int LeftDiagonalDistance;
 unsigned int RightDiagonalDistance;
 
+int x3_buffer[10], y3_buffer[10],x2_buffer[10], y2_buffer[10];
+
 HTML510Server h(80);
 WiFiServer server(80);
 char numberArray[20];
+char lenStr[20];
 
 const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
 const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
+
+// const char* ssid = "gyn15's iPone";  //620@The_axis_apartments //TP-Link_E0C8
+// const char* password = "12345678";   //bdkU5RCVQGQP  //52665134
 
 char choice;
 char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
@@ -42,9 +48,10 @@ int roam = 0;       // Switching between automatic and manual mode of moving
 int police = 0;   // Determine if police mode is start or not
  
 // limits for obstacles:
-const int distanceLimit = 27;           // Front distance limit in cm
-const int sideDistanceLimit = 12;       // Side distance limit in cm
+const int distanceLimit = 30;           // Front distance limit in cm
+const int sideDistanceLimit = 30;       // Side distance limit in cm
 const int turnTime = 800;// Time needed to turn robot
+int count;
 
 // handle vive
 #define RGBLED 2 // for ESP32S2 Devkit pin 18, for M5 stamp=2
@@ -56,15 +63,54 @@ const int turnTime = 800;// Time needed to turn robot
 #define FREQ 1 // in Hz
 
 Vive510 vive1(SIGNALPIN1);
-Vive510 vive2(SIGNALPIN2);    
+Vive510 vive2(SIGNALPIN2);
 
-static float x3,y3,x2,y2;
-int team;
-float x,y;
-
+static uint16_t x3,y3,x2,y2;
+int team,x,y;
 WiFiUDP UDPServer;
 WiFiUDP UDPTestServer;
 IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
+
+#include <stdio.h>
+#include "esp_log.h"
+#include "driver/i2c.h"
+#include "sdkconfig.h"
+
+
+#define DATA_LENGTH 128                  /*!< Data buffer length of test buffer */
+#define RW_TEST_LENGTH 22               /*!< Data length for r/w test, [0,DATA_LENGTH] */
+
+#define I2C_SLAVE_SCL_IO (gpio_num_t)4               /*!< gpio number for i2c slave clock */
+#define I2C_SLAVE_SDA_IO (gpio_num_t)5               /*!< gpio number for i2c slave data */
+#define I2C_SLAVE_TX_BUF_LEN (2* DATA_LENGTH)              /*!< I2C slave tx buffer size */
+#define I2C_SLAVE_RX_BUF_LEN (2 * DATA_LENGTH)              /*!< I2C slave rx buffer size */
+
+#define ESP_SLAVE_ADDR       0x28 /*!< ESP32 slave address, you can set any 7bit value */
+
+/**
+ * @brief i2c slave initialization
+ */
+static esp_err_t i2c_slave_init()
+{
+    i2c_port_t i2c_slave_port = I2C_NUM_0;
+    i2c_config_t conf_slave;
+    conf_slave.sda_io_num = I2C_SLAVE_SDA_IO;
+    conf_slave.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    conf_slave.scl_io_num = I2C_SLAVE_SCL_IO;
+    conf_slave.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    conf_slave.mode = I2C_MODE_SLAVE;
+    conf_slave.slave.addr_10bit_en = 0;
+    conf_slave.slave.slave_addr = ESP_SLAVE_ADDR;
+    i2c_param_config(i2c_slave_port, &conf_slave);
+    return i2c_driver_install(i2c_slave_port, conf_slave.mode,
+                              I2C_SLAVE_RX_BUF_LEN,
+                              I2C_SLAVE_TX_BUF_LEN, 0);
+}
+
+String message = "begin";
+String lastmessage = "begin";
+uint8_t data_rd[DATA_LENGTH];
+uint8_t data_wr[] = "Team 1: ";
 
 void UdpSend(int x_udp, int y_udp)
 {
@@ -77,22 +123,42 @@ void UdpSend(int x_udp, int y_udp)
   Serial.println(udpBuffer);
 }
 
+//void trophy(){
+//  if (abs(freq1 - freq2)>= 4) {
+//    moveFront();
+//  }
+//  moveLeft();
+//  delay(400);
+//  moveStop;
+//}
+
 void trackPolice(){
-  float s1 = (y-y3)/(x-x3);
-  float s2 = (y3-y2)/(x3-x2);
-  Serial.print("s1: ");
-  Serial.println(s1);
-  Serial.print("s2: ");
-  Serial.println(s2);
-  if (abs(s1-s2)>=0.2){
-    moveRight();
-    delay(200);
-    moveStop();
-    delay(400);
-  }else{
-    moveForward();
-    delay(800);
-  }
+  int deltax = x-findmedian(x3_buffer,10);
+  int deltay = y-findmedian(y3_buffer,10);
+  int deltaRX = findmedian(x3_buffer,10)-findmedian(x2_buffer,10);
+  int deltaRY = findmedian(y3_buffer,10)-findmedian(y2_buffer,10);
+  float angle = atan2(deltay, deltax);
+  float robot = atan2(deltaRY, deltaRX);
+  float robotx = (angle - robot)*180/3.14;
+  Serial.print("robotx:");
+  Serial.println(robotx);
+  float mag = sqrt(sq(deltax)+sq(deltay));
+    if (abs(robotx)>=20 && mag >= 500){
+      moveRight();
+      delay(200);
+      moveStop();
+      delay(600);
+    }else if(abs(robotx)<20 && mag > 500){
+      moveForward();
+      delay(3000);
+    } else if (mag <500) {
+      moveBackward();
+      delay(500);
+      moveForward();
+      delay(1000);
+    } else {
+      moveStop();
+    }
 }
 
 void handleUDPServer() {
@@ -131,6 +197,8 @@ void setup(){
 
   IPAddress myIP(192,168,1,130);  //change to your own IP address
   IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
+  // IPAddress myIP(172,20,10,2);  //change to your own IP address
+  // IPAddress routerIP(122,20,10,1); //192,168,1,1 //10,20,104,1 
   
   WiFi.mode(WIFI_AP_STA);    //AP-static mode
   WiFi.begin(ssid, password);
@@ -150,6 +218,8 @@ void setup(){
   vive1.begin();
   vive2.begin();
   Serial.println("  Vive trackers started");
+  
+  i2c_slave_init();
 
   h.begin();   //start the server
   h.attachHandler("/",handleRoot);
@@ -165,6 +235,7 @@ void handleRoot(){
 }
 
 void handleSlider1() {
+  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "Move";
   if (sliderValue == 3) {
@@ -180,10 +251,12 @@ void handleSlider1() {
     moveStop();
     Serial.println(sliderValue);
   }
+  message = s;
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
 void handleSlider2() {
+  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "";
   if (sliderValue == 1){
@@ -221,10 +294,12 @@ void handleSlider2() {
     s = s+ "Police car";
     Serial.println(sliderValue);
   } 
+  message = s;
   h.sendplain(s);
 } // Mode slider: control/autonomous
 
 void handleSlider3() {
+  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "Move";
   if (sliderValue == 3) {
@@ -244,13 +319,13 @@ void handleSlider3() {
     moveStop();
     Serial.println(sliderValue);
   }
+  message = s;
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
 //This function determines the distance things are away from the ultrasonic sensor
 void scan(){
   long pulse;
-  Serial.println("Scanning distance");
   digitalWrite(TRIG_PIN,LOW);
   delayMicroseconds(5);                                                                              
   digitalWrite(TRIG_PIN,HIGH);
@@ -258,7 +333,6 @@ void scan(){
   digitalWrite(TRIG_PIN,LOW);
   pulse = pulseIn(ECHO_PIN,HIGH);
   distance = round( pulse*0.01657 );
-  Serial.println(distance);
 }
 
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
@@ -306,163 +380,90 @@ void moveStop(){
   ledcAnalogWrite(Motor_channel3,map(88, 0, 180, 122, 492));
 }
 
-void watchsurrounding(){ 
-  //Meassures distances to the right, left, front, left diagonal, right diagonal and asign them in cm to the variables rightscanval, 
-  //leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval (there are 5 points for distance testing)
-  // Scanning front 
-  scan();
-  FrontDistance = distance;
-  Serial.println("Front distance measuring done");
-  if(FrontDistance < distanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(100);
 
-  // Scanning left diagnal
-  scan();
-  LeftDiagonalDistance = distance;
-  Serial.println("Left diagonal distance measuring done");
-  if(LeftDiagonalDistance < distanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(162, 0, 180, 122, 492));  // update Motor duty cycle
+void watchsurrounding(){
+
+  // Scanning left diagnal(front)
+  ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
   delay(300);
-
-  // Scanning left
-  scan();
-  LeftDistance = distance;
-  Serial.println("Left distance measuring done");
-  if(LeftDistance < sideDistanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(100);
-
-  // Scanning left diagnal
-  scan();
-  LeftDiagonalDistance = distance;
-  Serial.println("Left diagonal distance measuring done");
-  if(LeftDiagonalDistance < distanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(98, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(100);
-
-  // Scanning front
   scan();
   FrontDistance = distance;
-  Serial.println("Front distance measuring done");
-  if(FrontDistance < distanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(66, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(100);
 
-  // Scanning right diagnal
-  scan();
-  RightDiagonalDistance = distance;
-  Serial.println("Right diagonal distance measuring done");
-  if(RightDiagonalDistance < distanceLimit){
-    moveStop();
-  }
-  ledcAnalogWrite(Motor_channel1,map(34, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(100);
-
-  // Scanning right
+  // Scanning right diagnal(right)
+  ledcAnalogWrite(Motor_channel1,map(50, 0, 180, 122, 492));  // update Motor duty cycle
+  delay(300);
   scan();
   RightDistance = distance;
-  Serial.println("Right distance measuring done");
-  if(RightDistance < sideDistanceLimit){
-    moveStop();
-  }
-
-  //Finish looking around (look forward again)
-  ledcAnalogWrite(Motor_channel1,map(98, 0, 180, 122, 492));  // update Motor duty cycle
-  delay(300);
-  Serial.println("Measuring done");
 }
 
-char decide(){
-   // Decide the right way without obstacles
-  watchsurrounding();
-  if (LeftDistance > RightDistance && LeftDistance > FrontDistance){
-    Serial.println("Choise result is: LEFT");
-    choice = 'l';
-  }
-  else if (RightDistance > LeftDistance && RightDistance > FrontDistance){
-    Serial.println("Choise result is: RIGHT");
-    choice = 'r';
-  }
-  else if ( LeftDistance < sideDistanceLimit && RightDistance < sideDistanceLimit && FrontDistance < distanceLimit ) {
-    Serial.println("Choice result is: BACK"); 
-    choice = 'b';
-  }
-  else{
-    Serial.println("Choise result is: FORWARD");
-    choice = 'f';
-  }
-  return choice;
-}
 
 void go() {
-  moveForward();
-  ++numcycles;
-  // After 40 cycles of code measure surrounding obstacles
-  if(numcycles>40){
-    Serial.println("Front obstancle detected");
-    watchsurrounding();
-    if( LeftDistance < sideDistanceLimit || LeftDiagonalDistance < sideDistanceLimit){
-      Serial.println("Moving: RIGHT");
-      moveRight();
-      delay(turnTime);
-    }
-    if( RightDistance < sideDistanceLimit || RightDiagonalDistance < sideDistanceLimit){
-      Serial.println("Moving: LEFT");
-      moveLeft();
-      delay(turnTime);
-    }
-    numcycles=0; //Restart count of cycles
+
+  if (FrontDistance >= distanceLimit && -5 < (RightDistance - sideDistanceLimit) && (RightDistance - sideDistanceLimit) < 5) {
+    moveForward();
+    
   }
-  scan();
-  if( distance < distanceLimit){
-    distanceCounter++;
-  }
-  if( distance > distanceLimit){
-    distanceCounter = 0;
-  }
-  // robot reachaed 7 times distance limit in front of the robot, so robot must stop immediately and decide right way
-  if(distanceCounter > 7){
+  else if (FrontDistance < distanceLimit) {
+    moveLeft();
+    delay(500);
     moveStop();
-    turnDirection = decide();
-     switch (turnDirection){
-      case 'l':
-        moveLeft();
-        delay(turnTime);
-        moveStop();
-        break;
-      case 'r':
-        moveRight();
-        delay(turnTime);
-        moveStop();
-        break;
-      case 'b':
-        moveBackward();
-        delay(2*turnTime);
-        moveStop();
-        break;
-      case 'f':
-        break;
+    moveForward();
+  }
+  if (FrontDistance >= distanceLimit && RightDistance <= (sideDistanceLimit - 5)) {
+    moveLeft();
+    delay(100);
+    moveStop();
+    moveForward();
+  }
+  else if (FrontDistance >= distanceLimit && RightDistance >= (sideDistanceLimit + 5)) {
+    moveRight();
+    delay(100);
+    moveStop();
+    moveForward();
+  }
+  // else if (-5 < (RightDistance - sideDistanceLimit) && (RightDistance - sideDistanceLimit) < 5) {
+  //   moveForward();
+  // }
+}
+
+int findmedian(int arr[], int size) {
+  // Sort the array
+  for (int i = 0; i < size - 1; i++) {
+    for (int j = i + 1; j < size; j++) {
+      if (arr[j] < arr[i]) {
+        // Swap elements if they are in the wrong order
+        int temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+      }
     }
-    distanceCounter = 0;
+  }
+
+  // Calculate the median
+  if (size % 2 == 0) {
+    // If the size of the array is even, return the average of the middle two elements
+    return (arr[size / 2 - 1] + arr[size / 2]) / 2;
+  } else {
+    // If the size of the array is odd, return the middle element
+    return arr[size / 2];
   }
 }
 
 void loop(){
-  h.serve();
+  h.serve(); 
   handleUDPServer();
   static long int ms = millis();
 
+  if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
+    if (data_rd[0] == 'G' && data_rd[1] == 'O')
+       Serial.println("GO!");
+    Serial.printf("READ from master: %s\n",data_rd);
+    //                         I2Cport    buffer   length of data   max ticks to wait if buffer is full
+    if (i2c_slave_write_buffer(I2C_NUM_0, data_wr, RW_TEST_LENGTH, 10 / portTICK_RATE_MS) ) {
+      Serial.printf("WRITE to master: %s\n",data_wr);
+    }  
+  }
+ 
   if (millis()-ms>1000/FREQ) {
     ms = millis();
     if (WiFi.status()==WL_CONNECTED)
@@ -474,6 +475,8 @@ void loop(){
   if (vive1.status() == VIVE_RECEIVING) {
     x3 = vive1.xCoord();
     y3 = vive1.yCoord();
+    x3_buffer[count] = x3;
+    y3_buffer[count] = y3;
     neopixelWrite(RGBLED,0,x3/200,y3/200);  // blue to greenish
   }
   else {
@@ -493,7 +496,10 @@ void loop(){
   if (vive2.status() == VIVE_RECEIVING) {
     x2 = vive2.xCoord();
     y2 = vive2.yCoord();
-    //neopixelWrite(RGBLED,0,x/200,y/200);  // blue to greenish
+    x2_buffer[count] = x2;
+    y2_buffer[count] = y2;
+    count++;
+    neopixelWrite(RGBLED,0,x/200,y/200);  // blue to greenish
   }
   else {
     x2=0;
@@ -508,12 +514,13 @@ void loop(){
         neopixelWrite(RGBLED,128,0,0);  // red
     }
   }
-  if(police == 1){
-    trackPolice();
-  }
   
   if(roam == 1){
     go();
+  }
+  if(police == 1 && count>= 10){
+    trackPolice();
+    count = 0;
   }
   delay(20);
 }
