@@ -109,6 +109,59 @@ String lastmessage = "begin";
 uint8_t data_rd[DATA_LENGTH];
 uint8_t data_wr[] = "Team 1: begin";
 
+
+
+
+void setup(){
+  int i=0;
+  Serial.begin(9600);  
+  
+  ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Head Motor channel1
+  ledcAttachPin(HeadPin, Motor_channel1);
+  ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
+  ledcAttachPin(LeftMotor, Motor_channel2);
+  ledcSetup(Motor_channel3, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
+  ledcAttachPin(RightMotor, Motor_channel3);
+
+  // ultrasonic pin set
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  IPAddress myIP(192,168,1,130);  //change to your own IP address
+  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
+  // IPAddress myIP(172,20,10,2);  //change to your own IP address
+  // IPAddress routerIP(122,20,10,1); //192,168,1,1 //10,20,104,1 
+  
+  WiFi.mode(WIFI_AP_STA);    //AP-static mode
+  WiFi.begin(ssid, password);
+  WiFi.config(myIP,routerIP,IPAddress(255,255,255,0));
+
+  Serial.printf("team  #%d ", teamNumber); 
+  while(WiFi.status()!= WL_CONNECTED ) {
+    delay(500);
+    Serial.print(".");
+  } //check WiFi conncetion
+  Serial.printf("connected to %s on",ssid); 
+  Serial.println(myIP);
+
+  UDPTestServer.begin(UDPPORT);
+  UDPServer.begin(UDPPORT);
+  
+  vive1.begin();
+  vive2.begin();
+  Serial.println("  Vive trackers started");
+  
+  i2c_slave_init();
+
+  h.begin();   //start the server
+  h.attachHandler("/",handleRoot);
+  h.attachHandler("/setDirection?val=", handleSlider1);    //attach sliders
+  h.attachHandler("/setMode?val=", handleSlider2);
+  h.attachHandler("/setLR?val=", handleSlider3);
+  
+  moveStop();
+}
+
 void UdpSend(int x_udp, int y_udp)
 {
   char udpBuffer[20];
@@ -175,56 +228,6 @@ void handleUDPServer() {
         Serial.println((char *)packetBuffer);
       }
    }
-}
-
-void setup(){
-  int i=0;
-  Serial.begin(9600);  
-  
-  ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Head Motor channel1
-  ledcAttachPin(HeadPin, Motor_channel1);
-  ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
-  ledcAttachPin(LeftMotor, Motor_channel2);
-  ledcSetup(Motor_channel3, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
-  ledcAttachPin(RightMotor, Motor_channel3);
-
-  // ultrasonic pin set
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  IPAddress myIP(192,168,1,130);  //change to your own IP address
-  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
-  // IPAddress myIP(172,20,10,2);  //change to your own IP address
-  // IPAddress routerIP(122,20,10,1); //192,168,1,1 //10,20,104,1 
-  
-  WiFi.mode(WIFI_AP_STA);    //AP-static mode
-  WiFi.begin(ssid, password);
-  WiFi.config(myIP,routerIP,IPAddress(255,255,255,0));
-
-  Serial.printf("team  #%d ", teamNumber); 
-  while(WiFi.status()!= WL_CONNECTED ) {
-    delay(500);
-    Serial.print(".");
-  } //check WiFi conncetion
-  Serial.printf("connected to %s on",ssid); 
-  Serial.println(myIP);
-
-  UDPTestServer.begin(UDPPORT);
-  UDPServer.begin(UDPPORT);
-  
-  vive1.begin();
-  vive2.begin();
-  Serial.println("  Vive trackers started");
-  
-  i2c_slave_init();
-
-  h.begin();   //start the server
-  h.attachHandler("/",handleRoot);
-  h.attachHandler("/setDirection?val=", handleSlider1);    //attach sliders
-  h.attachHandler("/setMode?val=", handleSlider2);
-  h.attachHandler("/setLR?val=", handleSlider3);
-  
-  moveStop();
 }
 
 void handleRoot(){
@@ -302,7 +305,7 @@ void handleSlider2() {
   strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
   
   h.sendplain(s);
-} // Mode slider: control/autonomous
+} // Mode slider: manual/autonomous
 
 void handleSlider3() {
   lastmessage = message;
@@ -345,6 +348,7 @@ void scan(){
   distance = round( pulse*0.01657 );
 }
 
+// write duty cycle to motors
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
   uint32_t duty = Motor_resolution * min(value, valueMax) / valueMax;
   ledcWrite(channel, duty); // write duty to Motor pin
@@ -393,13 +397,13 @@ void moveStop(){
 
 void watchsurrounding(){
 
-  // Scanning left diagnal(front)
+  // Scanning front
   ledcAnalogWrite(Motor_channel1,map(130, 0, 180, 122, 492));  // update Motor duty cycle
   delay(300);
   scan();
   FrontDistance = distance;
 
-  // Scanning right diagnal(right)
+  // Scanning right
   ledcAnalogWrite(Motor_channel1,map(50, 0, 180, 122, 492));  // update Motor duty cycle
   delay(300);
   scan();
@@ -408,7 +412,7 @@ void watchsurrounding(){
 
 
 void go() {
-
+// wall following main code
   if (FrontDistance >= distanceLimit && -5 < (RightDistance - sideDistanceLimit) && (RightDistance - sideDistanceLimit) < 5) {
     moveForward();
     
@@ -460,10 +464,12 @@ int findmedian(int arr[], int size) {
 }
 
 void loop(){
+ //start web page control server
   h.serve(); 
+ //start UDP server
   handleUDPServer();
   static long int ms = millis();
-
+ //master-slave communication
   if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
     if (data_rd[0] == 'G' && data_rd[1] == 'O')
        Serial.println("GO!");
@@ -474,6 +480,7 @@ void loop(){
     }  
   }
  
+ // Send vive sensed signal through UDP communication
   if (millis()-ms>1000/FREQ) {
     ms = millis();
     if (WiFi.status()==WL_CONNECTED)
@@ -481,7 +488,8 @@ void loop(){
     UdpSend(x3,y3);
     UdpSend(x2,y2);
   }
-  
+
+ // Receive Vive signal from vive sensors
   if (vive1.status() == VIVE_RECEIVING) {
     x3 = vive1.xCoord();
     y3 = vive1.yCoord();
@@ -524,10 +532,13 @@ void loop(){
         neopixelWrite(RGBLED,128,0,0);  // red
     }
   }
-  
+
+ // check if the automatic (wall following) mode is started
   if(roam == 1){
     go();
   }
+
+ // check if track mode is started
   if(police == 1 && count>= 10){
     trackPolice();
     count = 0;
