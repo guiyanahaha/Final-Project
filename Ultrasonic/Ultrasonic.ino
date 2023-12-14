@@ -36,9 +36,6 @@ char lenStr[20];
 const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
 const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
 
-// const char* ssid = "gyn15's iPone";  //620@The_axis_apartments //TP-Link_E0C8
-// const char* password = "12345678";   //bdkU5RCVQGQP  //52665134
-
 char choice;
 char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
 
@@ -110,7 +107,7 @@ static esp_err_t i2c_slave_init()
 String message = "begin";
 String lastmessage = "begin";
 uint8_t data_rd[DATA_LENGTH];
-uint8_t data_wr[] = "Team 1: ";
+uint8_t data_wr[] = "Team 1: begin";
 
 void UdpSend(int x_udp, int y_udp)
 {
@@ -252,6 +249,10 @@ void handleSlider1() {
     Serial.println(sliderValue);
   }
   message = s;
+  int len = message.length();
+  strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
+  strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
+  
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
@@ -295,6 +296,11 @@ void handleSlider2() {
     Serial.println(sliderValue);
   } 
   message = s;
+    
+  int len = message.length();
+  strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
+  strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
+  
   h.sendplain(s);
 } // Mode slider: control/autonomous
 
@@ -320,6 +326,10 @@ void handleSlider3() {
     Serial.println(sliderValue);
   }
   message = s;
+
+  int len = message.length();
+  strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
+  strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
