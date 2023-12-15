@@ -19,9 +19,12 @@ void loop() {
       Serial.print(frequency);
       Serial.println(" Hz");
 
-      // Check if the frequency is close to 550Hz (adjust the tolerance as needed)
+      // Check if the frequency is close to 550Hz or 23Hz (adjust the tolerance as needed)
       if (abs(frequency - 550) < 10) {
         Serial.println("Detected 550Hz IR signal!");
+        // Add your code here to perform an action when the signal is detected
+      } else if (abs(frequency - 23) < 2) {
+        Serial.println("Detected 23Hz IR signal!");
         // Add your code here to perform an action when the signal is detected
       }
     }
