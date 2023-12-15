@@ -1,19 +1,64 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <WiFiUdp.h>
-#include <stdio.h>
-#include "esp_log.h"
+
 #include "driver/i2c.h"
 #include "sdkconfig.h"
 #include "vive510.h"
 #include "Webpage.h"
 #include "html510.h"
 
+// handle master-slave(i2c)
+#define DATA_LENGTH 128                  /*!< Data buffer length of test buffer */
+#define RW_TEST_LENGTH 22               /*!< Data length for r/w test, [0,DATA_LENGTH] */
+
+#define I2C_SLAVE_SCL_IO (gpio_num_t)7               /*!< gpio number for i2c slave clock */
+#define I2C_SLAVE_SDA_IO (gpio_num_t)10              /*!< gpio number for i2c slave data */
+#define I2C_SLAVE_TX_BUF_LEN (2* DATA_LENGTH)              /*!< I2C slave tx buffer size */
+#define I2C_SLAVE_RX_BUF_LEN (2 * DATA_LENGTH)              /*!< I2C slave rx buffer size */
+
+#define ESP_SLAVE_ADDR       0x28 /*!< ESP32 slave address, you can set any 7bit value */
+
 #define TRIG_PIN     4                // GPIO pin for triger on ultrasonic sensor
 #define ECHO_PIN     5              // GPIO pin for echo 
 #define Motor_channel1 0 
 #define Motor_channel2 1 
 #define Motor_channel3 2
+const int HeadPin = 1;  // GPIO pin for the Head Motor
+const int LeftMotor = 0; //// GPIO pin for the LeftMotor
+const int RightMotor = 6; //// GPIO pin for the LeftMotor
+
+#define Motor_freq 50  //Motor frequency
+#define Motor_resolution_bits 12 //Motor resolution in bits
+#define Motor_resolution ((1<<Motor_resolution_bits)-1)
+
+unsigned int distance;
+unsigned int FrontDistance;
+unsigned int LeftDistance;
+unsigned int RightDistance;
+unsigned int LeftDiagonalDistance;
+unsigned int RightDiagonalDistance;
+
+HTML510Server h(80);
+WiFiServer server(80);
+char numberArray[20];
+char lenStr[20];
+
+const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
+const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
+
+char choice;
+char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
+
+int distanceCounter = 0;               
+int numcycles = 0;  // Number of cycles used to rotate with head during moving
+int roam = 0;       // Switching between automatic and manual mode of moving
+int police = 0;   // Determine if police mode is start or not
+ 
+// limits for obstacles:
+const int distanceLimit = 35;           // Front distance limit in cm
+const int sideDistanceLimit = 25;       // Side distance limit in cm
+const int turnTime = 800;// Time needed to turn robot
 
 // handle vive
 #define RGBLED 2 // for ESP32S2 Devkit pin 18, for M5 stamp=2
@@ -24,69 +69,23 @@
 #define teamNumber 1
 #define FREQ 1 // in Hz
 
-#define Motor_freq 50  //Motor frequency
-#define Motor_resolution_bits 12 //Motor resolution in bits
-#define Motor_resolution ((1<<Motor_resolution_bits)-1)
+Vive510 vive1(SIGNALPIN1);
+Vive510 vive2(SIGNALPIN2);    
 
-// handle master-slave(i2c)
-#define DATA_LENGTH 128                  /*!< Data buffer length of test buffer */
-#define RW_TEST_LENGTH 22               /*!< Data length for r/w test, [0,DATA_LENGTH] */
-
-#define I2C_SLAVE_SCL_IO (gpio_num_t)4               /*!< gpio number for i2c slave clock */
-#define I2C_SLAVE_SDA_IO (gpio_num_t)5               /*!< gpio number for i2c slave data */
-#define I2C_SLAVE_TX_BUF_LEN (2* DATA_LENGTH)              /*!< I2C slave tx buffer size */
-#define I2C_SLAVE_RX_BUF_LEN (2 * DATA_LENGTH)              /*!< I2C slave rx buffer size */
-
-#define ESP_SLAVE_ADDR       0x28 /*!< ESP32 slave address, you can set any 7bit value */
-
-const int HeadPin = 1;  // GPIO pin for the Head Motor
-const int LeftMotor = 0; //// GPIO pin for the LeftMotor
-const int RightMotor = 6; //// GPIO pin for the LeftMotor
-
-// limits for obstacles:
-const int distanceLimit = 30;           // Front distance limit in cm
-const int sideDistanceLimit = 30;       // Side distance limit in cm
-const int turnTime = 800;// Time needed to turn robot
-
-unsigned int distance;
-unsigned int FrontDistance;
-unsigned int LeftDistance;
-unsigned int RightDistance;
-unsigned int LeftDiagonalDistance;
-unsigned int RightDiagonalDistance;
+static float x3,y3,x2,y2;
+int team, count;
+float x,y;
 
 int x3_buffer[10], y3_buffer[10],x2_buffer[10], y2_buffer[10];
-int distanceCounter = 0;               
-int numcycles = 0;  // Number of cycles used to rotate with head during moving
-int roam = 0;       // Switching between automatic and manual mode of moving
-int police = 0;   // Determine if police mode is start or not
-int count;
-int team,x,y;
-
-HTML510Server h(80);
-WiFiServer server(80);
-char numberArray[20];
-char lenStr[20];
-
-char choice;
-char turnDirection;  // Gets 'l', 'r' or 'f' depending on which direction is obstacle free
-
-const char* ssid = "TP-Link_E0C8";  //620@The_axis_apartments //TP-Link_E0C8
-const char* password = "52665134";   //bdkU5RCVQGQP  //52665134
-
-Vive510 vive1(SIGNALPIN1);
-Vive510 vive2(SIGNALPIN2);
-
-String message = "begin";
-String lastmessage = "begin";
-uint8_t data_rd[DATA_LENGTH];
-uint8_t data_wr[] = "Team 1: begin";
-static uint16_t x3,y3,x2,y2;
 
 WiFiUDP UDPServer;
 WiFiUDP UDPTestServer;
 IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
 
+int typo;
+String message = "b";
+uint8_t data_rd[DATA_LENGTH];
+uint8_t data_wr[] = "Team 1";
 
 /**
  * @brief i2c slave initialization
@@ -108,58 +107,6 @@ static esp_err_t i2c_slave_init()
                               I2C_SLAVE_TX_BUF_LEN, 0);
 }
 
-
-
-void setup(){
-  int i=0;
-  Serial.begin(9600);  
-  
-  ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Head Motor channel1
-  ledcAttachPin(HeadPin, Motor_channel1);
-  ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
-  ledcAttachPin(LeftMotor, Motor_channel2);
-  ledcSetup(Motor_channel3, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
-  ledcAttachPin(RightMotor, Motor_channel3);
-
-  // ultrasonic pin set
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  IPAddress myIP(192,168,1,130);  //change to your own IP address
-  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
-  //IPAddress myIP(10,20,104,130);  //change to your own IP address
-  //IPAddress routerIP(10,20,104,1); //192,168,1,1 //10,20,104,1 
-  
-  WiFi.mode(WIFI_AP_STA);    //AP-static mode
-  WiFi.begin(ssid, password);
-  WiFi.config(myIP,routerIP,IPAddress(255,255,255,0));
-
-  Serial.printf("team  #%d ", teamNumber); 
-  while(WiFi.status()!= WL_CONNECTED ) {
-    delay(500);
-    Serial.print(".");
-  } //check WiFi conncetion
-  Serial.printf("connected to %s on",ssid); 
-  Serial.println(myIP);
-
-  UDPTestServer.begin(UDPPORT);
-  UDPServer.begin(UDPPORT);
-  
-  vive1.begin();
-  vive2.begin();
-  Serial.println("  Vive trackers started");
-  
-  i2c_slave_init();
-
-  h.begin();   //start the server
-  h.attachHandler("/",handleRoot);
-  h.attachHandler("/setDirection?val=", handleSlider1);    //attach sliders
-  h.attachHandler("/setMode?val=", handleSlider2);
-  h.attachHandler("/setLR?val=", handleSlider3);
-  
-  moveStop();
-}
-
 void UdpSend(int x_udp, int y_udp)
 {
   char udpBuffer[20];
@@ -171,17 +118,8 @@ void UdpSend(int x_udp, int y_udp)
   Serial.println(udpBuffer);
 }
 
-//void trophy(){
-//  if (abs(freq1 - freq2)>= 4) {
-//    moveFront();
-//  }
-//  moveLeft();
-//  delay(400);
-//  moveStop;
-//}
-
 void trackPolice(){
-  int deltax = x-findmedian(x3_buffer,10);
+int deltax = x-findmedian(x3_buffer,10);
   int deltay = y-findmedian(y3_buffer,10);
   int deltaRX = findmedian(x3_buffer,10)-findmedian(x2_buffer,10);
   int deltaRY = findmedian(y3_buffer,10)-findmedian(y2_buffer,10);
@@ -228,12 +166,59 @@ void handleUDPServer() {
    }
 }
 
+void setup(){
+  int i=0;
+  Serial.begin(9600);  
+  
+  ledcSetup(Motor_channel1, Motor_freq, Motor_resolution_bits); // setup Head Motor channel1
+  ledcAttachPin(HeadPin, Motor_channel1);
+  ledcSetup(Motor_channel2, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
+  ledcAttachPin(LeftMotor, Motor_channel2);
+  ledcSetup(Motor_channel3, Motor_freq, Motor_resolution_bits); // setup Left Motor channel2
+  ledcAttachPin(RightMotor, Motor_channel3);
+
+  // ultrasonic pin set
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  IPAddress myIP(192,168,1,130);  //change to your own IP address
+  IPAddress routerIP(192,168,1,1); //192,168,1,1 //10,20,104,1
+  
+  WiFi.mode(WIFI_AP_STA);    //AP-static mode
+  WiFi.begin(ssid, password);
+  WiFi.config(myIP,routerIP,IPAddress(255,255,255,0));
+
+  Serial.printf("team  #%d ", teamNumber); 
+  while(WiFi.status()!= WL_CONNECTED ) {
+    delay(500);
+    Serial.print(".");
+  } //check WiFi conncetion
+  Serial.printf("connected to %s on",ssid); 
+  Serial.println(myIP);
+
+  UDPTestServer.begin(UDPPORT);
+  UDPServer.begin(UDPPORT);
+  
+  vive1.begin();
+  vive2.begin();
+  Serial.println("  Vive trackers started");
+
+  i2c_slave_init();
+
+  h.begin();   //start the server
+  h.attachHandler("/",handleRoot);
+  h.attachHandler("/setDirection?val=", handleSlider1);    //attach sliders
+  h.attachHandler("/setMode?val=", handleSlider2);
+  h.attachHandler("/setLR?val=", handleSlider3);
+  
+  moveStop();
+}
+
 void handleRoot(){
   h.sendhtml(body);
 }
 
 void handleSlider1() {
-  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "Move";
   if (sliderValue == 3) {
@@ -253,12 +238,12 @@ void handleSlider1() {
   int len = message.length();
   strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
   strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
+  typo = 1;
   
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
 void handleSlider2() {
-  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "";
   if (sliderValue == 1){
@@ -297,16 +282,14 @@ void handleSlider2() {
     Serial.println(sliderValue);
   } 
   message = s;
-    
   int len = message.length();
   strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
   strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
-  
+  typo = 1;
   h.sendplain(s);
-} // Mode slider: manual/autonomous
+} // Mode slider: control/autonomous
 
 void handleSlider3() {
-  lastmessage = message;
   int sliderValue = h.getVal();
   String s = "Move";
   if (sliderValue == 3) {
@@ -327,16 +310,17 @@ void handleSlider3() {
     Serial.println(sliderValue);
   }
   message = s;
-
   int len = message.length();
   strcpy((char*)data_wr, "Team 1: "); // Copy "Team 1: " to data_wr
   strcat((char*)data_wr, itoa(len, lenStr, 10)); // Concatenate message to data_wr
+  typo = 1;
   h.sendplain(s);
 } // mode slider: move forward, stop, or backward
 
 //This function determines the distance things are away from the ultrasonic sensor
 void scan(){
   long pulse;
+  Serial.println("Scanning distance");
   digitalWrite(TRIG_PIN,LOW);
   delayMicroseconds(5);                                                                              
   digitalWrite(TRIG_PIN,HIGH);
@@ -344,9 +328,9 @@ void scan(){
   digitalWrite(TRIG_PIN,LOW);
   pulse = pulseIn(ECHO_PIN,HIGH);
   distance = round( pulse*0.01657 );
+  Serial.println(distance);
 }
 
-// write duty cycle to motors
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
   uint32_t duty = Motor_resolution * min(value, valueMax) / valueMax;
   ledcWrite(channel, duty); // write duty to Motor pin
@@ -356,8 +340,8 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 4095){
 void moveForward(){
   Serial.println("");
   Serial.println("Moving forward");
-  ledcAnalogWrite(Motor_channel2,map(180, 0, 180, 122, 492));
-  ledcAnalogWrite(Motor_channel3,map(62, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel2,map(140, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(0, 0, 180, 122, 492));
 }
 
 //This function tells the robot to move backward
@@ -389,7 +373,7 @@ void moveStop(){
   Serial.println("");
   Serial.println("Stopping");
   ledcAnalogWrite(Motor_channel2,map(87, 0, 180, 122, 492));
-  ledcAnalogWrite(Motor_channel3,map(88, 0, 180, 122, 492));
+  ledcAnalogWrite(Motor_channel3,map(87, 0, 180, 122, 492));
 }
 
 
@@ -462,25 +446,21 @@ int findmedian(int arr[], int size) {
 }
 
 void loop(){
- //start web page control server
-  h.serve(); 
- //start UDP server
+  h.serve();
   handleUDPServer();
   static long int ms = millis();
+
  //master-slave communication
- if (lastmessage!= message){
+ if (typo == 1){
     if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
-      if (data_rd[0] == 'G' && data_rd[1] == 'O')
-         Serial.println("GO!");
-      Serial.printf("READ from master: %s\n",data_rd);
       //I2Cport buffer length of data     max ticks to wait if buffer is full
       if (i2c_slave_write_buffer(I2C_NUM_0, data_wr, RW_TEST_LENGTH, 10 / portTICK_RATE_MS) ) {
         Serial.printf("WRITE to master: %s\n",data_wr);
       }  
     }
+    typo = 0;
   }
- 
- // Send vive sensed signal through UDP communication
+
   if (millis()-ms>1000/FREQ) {
     ms = millis();
     if (WiFi.status()==WL_CONNECTED)
@@ -488,8 +468,7 @@ void loop(){
     UdpSend(x3,y3);
     UdpSend(x2,y2);
   }
-
- // Receive Vive signal from vive sensors
+  
   if (vive1.status() == VIVE_RECEIVING) {
     x3 = vive1.xCoord();
     y3 = vive1.yCoord();
@@ -514,10 +493,7 @@ void loop(){
   if (vive2.status() == VIVE_RECEIVING) {
     x2 = vive2.xCoord();
     y2 = vive2.yCoord();
-    x2_buffer[count] = x2;
-    y2_buffer[count] = y2;
-    count++;
-    neopixelWrite(RGBLED,0,x/200,y/200);  // blue to greenish
+    //neopixelWrite(RGBLED,0,x/200,y/200);  // blue to greenish
   }
   else {
     x2=0;
@@ -532,17 +508,22 @@ void loop(){
         neopixelWrite(RGBLED,128,0,0);  // red
     }
   }
+  
+  x3_buffer[count] = x3;
+  y3_buffer[count] = y3;
+  x2_buffer[count] = x2;
+  y2_buffer[count] = y2;
 
- // check if the automatic (wall following) mode is started
-  if(roam == 1){
-    watchsurrounding();
-    go();
-  }
-
- // check if track mode is started
+  count++;
+  
   if(police == 1 && count>= 10){
     trackPolice();
     count = 0;
+  }
+  
+  if(roam == 1){
+    watchsurrounding();
+    go();
   }
   delay(20);
 }
