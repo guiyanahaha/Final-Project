@@ -1,34 +1,45 @@
-#include <IRremote.h>
-
-const int irReceiverPin = 2;  // Connect the IR receiver signal pin to Arduino digital pin 2
-
-IRrecv irrecv(irReceiverPin);
-decode_results results;
+const float a = 0.239; // Updated filter coefficient for 50 Hz cutoff
+float filteredValue = 0; // Holds the filtered value
+int lastReading = 0; // Holds the last reading
+unsigned long lastCrossingTime = 0; // Time of the last zero crossing
+bool crossingDetected = false; // Flag to avoid multiple detections for the same crossing
 
 void setup() {
-  Serial.begin(9600);
-  irrecv.enableIRIn();  // Start the IR receiver
+  // Initialize serial communication for debugging
+  Serial.begin(115200);
 }
 
 void loop() {
-  if (irrecv.decode(&results)) {
-    // Check if the received signal is close to 550Hz
-    if (results.decode_type == UNKNOWN && results.rawlen > 0) {
-      unsigned int frequency = 1000000 / (results.rawbuf[1] * USECPERTICK);  // Calculate frequency in Hz
-      Serial.print("Received signal at ");
-      Serial.print(frequency);
-      Serial.println(" Hz");
+  // Read the analog value (example)
+  int sensorValue = analogRead(0); 
 
-      // Check if the frequency is close to 550Hz or 23Hz (adjust the tolerance as needed)
-      if (abs(frequency - 550) < 10) {
-        Serial.println("Detected 550Hz IR signal!");
-        // Add your code here to perform an action when the signal is detected
-      } else if (abs(frequency - 23) < 2) {
-        Serial.println("Detected 23Hz IR signal!");
-        // Add your code here to perform an action when the signal is detected
+  // Convert to a voltage, assuming a 3.3V system and 12-bit ADC resolution
+  float voltage = sensorValue * (3.3 / 4095.0);
+
+  // Apply the low-pass filter with the new coefficient
+  filteredValue = a * voltage + (1 - a) * filteredValue;
+
+  // Check for zero crossing
+  if ((lastReading <= 0 && filteredValue > 0) || (lastReading >= 0 && filteredValue < 0)) {
+    if (!crossingDetected) {
+      unsigned long currentTime = millis();
+      if (lastCrossingTime > 0) { // Skip the first crossing
+        unsigned long period = currentTime - lastCrossingTime;
+        if (period > 0) { // Avoid division by zero
+          float frequency = 1000.0 / period; // Calculate frequency
+          Serial.print("Frequency: ");
+          Serial.println(frequency);
+        }
       }
+      lastCrossingTime = currentTime;
+      crossingDetected = true;
     }
-
-    irrecv.resume();  // Receive the next value
+  } else {
+    crossingDetected = false;
   }
+
+  lastReading = filteredValue;
+
+  // Delay to match the sampling frequency (1ms for 1000Hz)
+  delay(1);
 }
