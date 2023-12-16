@@ -25,7 +25,7 @@
 #define Motor_channel2 1 
 #define Motor_channel3 2
 const int HeadPin = 1;  // GPIO pin for the Head Motor
-const int LeftMotor = 0; //// GPIO pin for the LeftMotor
+const int LeftMotor = 8; //// GPIO pin for the LeftMotor
 const int RightMotor = 6; //// GPIO pin for the LeftMotor
 
 #define Motor_freq 50  //Motor frequency
@@ -82,7 +82,7 @@ WiFiUDP UDPServer;
 WiFiUDP UDPTestServer;
 IPAddress ipTarget(192, 168, 1, 255); // 255 => broadcast
 
-int typo;
+int typo, fake;
 String message = "b";
 uint8_t data_rd[DATA_LENGTH];
 uint8_t data_wr[] = "Team 1";
@@ -116,6 +116,25 @@ void UdpSend(int x_udp, int y_udp)
   UDPTestServer.println(udpBuffer);
   UDPTestServer.endPacket();
   Serial.println(udpBuffer);
+}
+
+void trackfake(){
+  float freq1;  
+  float freq2;
+
+  if (abs(freq1-23)<=2 && abs(freq2-23)<=2){
+    moveForward();
+    delay(1000);
+  } else if(abs(freq1-23)>2 && abs(freq1-23)<=2){
+    moveLeft();
+    delay(100);
+  } else if(abs(freq1-23)<=2 && abs(freq1-23)>2){
+    moveRight();
+    delay(100);
+  } else if (abs(freq1-23)>2 && abs(freq1-23)>2){
+    moveRight();
+    delay(200);
+  }
 }
 
 void trackPolice(){
@@ -250,11 +269,13 @@ void handleSlider2() {
     Serial.println("Automatic mode");
     moveStop();
     roam = 1; 
+    fake = 0;
     police = 0;
     s = s+ "Automatic";
   } else if(sliderValue == 0) {
     Serial.println("Manual mode");
     roam = 0;
+    fake = 0;
     police = 0;
     moveStop();
     s = s+ "Manual";
@@ -263,6 +284,7 @@ void handleSlider2() {
     // uses existing vive value to track police car
     Serial.println("Trophy mode");
     roam = 0;
+    fake = 0;
     police = 0;
     moveStop();
     s = s+ "Trophy";
@@ -270,6 +292,7 @@ void handleSlider2() {
   }else if(sliderValue == 3) {
     Serial.println("Fake mode");
     roam = 0;
+    fake = 1;
     police = 0;
     moveStop();
     s = s+ "Fake";
@@ -277,6 +300,7 @@ void handleSlider2() {
   } else if(sliderValue == 4) {
     Serial.println("Police mode");
     roam = 0;
+    fake = 0;
     police = 1;
     s = s+ "Police car";
     Serial.println(sliderValue);
@@ -401,7 +425,7 @@ void go() {
   }
   else if (FrontDistance < distanceLimit) {
     moveLeft();
-    delay(500);
+    delay(600);
     moveStop();
     moveForward();
   }
@@ -451,15 +475,13 @@ void loop(){
   static long int ms = millis();
 
  //master-slave communication
- if (typo == 1){
     if (i2c_slave_read_buffer(I2C_NUM_0, data_rd, RW_TEST_LENGTH, 0) > 0 ) { // last term is timeout period, 0 means don't wait  
+        Serial.printf("READ from master: %s\n",data_rd);
       //I2Cport buffer length of data     max ticks to wait if buffer is full
       if (i2c_slave_write_buffer(I2C_NUM_0, data_wr, RW_TEST_LENGTH, 10 / portTICK_RATE_MS) ) {
         Serial.printf("WRITE to master: %s\n",data_wr);
       }  
     }
-    typo = 0;
-  }
 
   if (millis()-ms>1000/FREQ) {
     ms = millis();
@@ -524,6 +546,10 @@ void loop(){
   if(roam == 1){
     watchsurrounding();
     go();
+  }
+
+  if(fake == 1){
+    trackfake();
   }
   delay(20);
 }
