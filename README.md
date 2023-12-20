@@ -47,3 +47,8 @@ The robot has different modes of operation, including manual control, autonomous
 - **Autonomous Mode**: The robot autonomously navigates based on obstacle detection.
 - **Fake Mode**: Simulates movement based on predefined conditions.
 - **Police Mode**: Implements specific movements based on Vive tracker positions.
+
+## Contribution
+
+- Yining Guo (foundamental code implementations, web interfaces, vive and police car tracking functionality)
+- Yuetong Hao (ultrasonic module implementation, wall-following)
