@@ -18,7 +18,7 @@ The robot's hardware includes ultrasonic sensors, motors, and Vive trackers. Con
 
 ## Code Structure
 
-The main code file is `robot_control.ino`, which includes the following functionalities:
+The main code file is `Main.ino`, which includes the following functionalities:
 
 - **Motor Control**: Controls the movement of the robot using PWM signals for different directions.
 - **Ultrasonic Sensor**: Uses an ultrasonic sensor to measure distances and make decisions based on obstacles.
