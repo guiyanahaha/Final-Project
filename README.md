@@ -52,3 +52,4 @@ The robot has different modes of operation, including manual control, autonomous
 
 - Yining Guo (foundamental code implementations, web interfaces, vive and police car tracking functionality)
 - Yuetong Hao (ultrasonic module implementation, wall-following)
+- Han Gong (suggestions on police car functionality)
