@@ -24,6 +24,10 @@ The main code file is `Main.ino`, which includes the following functionalities:
 - **Ultrasonic Sensor**: Uses an ultrasonic sensor to measure distances and make decisions based on obstacles.
 - **Vive Tracker Integration**: Interacts with Vive trackers for tracking position and orientation.
 
+The subcode file is `I2C_master.ino`, which includes the following functionalities:
+- **ESP now**: ESP now transmitting messages to other devices
+- **IR sensing**: Uses IR phototransistors to measure beacon frequency.
+
 ## Usage
 
 1. Upload the code to your ESP32 board using the Arduino IDE.
